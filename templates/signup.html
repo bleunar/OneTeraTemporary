@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up - 1TERA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/signup.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+</head>
+<body>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="auth-flash-messages">
+                {% for category, message in messages %}
+                    <div class="auth-alert auth-alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="signup-container">
+        <div class="auth-header">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="auth-logo-image" onerror="this.style.display='none'">
+            </div>
+            <h2>ONE Tigbauan Emergency Response App</h2>
+        </div>
+        
+        <div class="signup-form">
+            <h1>Create Account</h1>
+            <form method="POST" action="{{ url_for('signup') }}" autocomplete="off" id="signupForm">
+                <div class="form-row">
+                    <div class="input-group half">
+                        <input type="text" id="fname" name="fname" placeholder="First Name" required autocomplete="off">
+                        <label for="fname"><i class="fas fa-user"></i></label>
+                    </div>
+                    <div class="input-group half">
+                        <input type="text" id="lname" name="lname" placeholder="Last Name" required autocomplete="off">
+                        <label for="lname"><i class="fas fa-user"></i></label>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="tel" id="phone_num" name="phone_num" placeholder="Phone Number" required autocomplete="off">
+                    <label for="phone_num"><i class="fas fa-phone"></i></label>
+                </div>
+                
+                <div class="form-row">
+                    <div class="input-group half">
+                        <input type="number" id="age" name="age" placeholder="Age" min="13" max="120" required autocomplete="off">
+                        <label for="age"><i class="fas fa-birthday-cake"></i></label>
+                    </div>
+                    <div class="input-group half">
+                        <input type="date" id="birthday" name="birthday" required autocomplete="off">
+                        <label for="birthday"><i class="fas fa-calendar"></i></label>
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <input type="email" id="email" name="email" placeholder="Email Address" required autocomplete="off">
+                    <label for="email"><i class="fas fa-envelope"></i></label>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="password" name="password" placeholder="Create Password" required autocomplete="new-password">
+                    <label for="password"><i class="fas fa-lock"></i></label>
+                    <span class="toggle-password" onclick="togglePasswordVisibility('password')">
+                        <i class="fas fa-eye"></i>
+                    </span>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Confirm Password" required autocomplete="new-password">
+                    <label for="confirmPassword"><i class="fas fa-lock"></i></label>
+                    <span class="toggle-password" onclick="togglePasswordVisibility('confirmPassword')">
+                        <i class="fas fa-eye"></i>
+                    </span>
+                </div>
+                
+                <!-- Password Validation - Now placed under confirm password -->
+                <div class="password-validation" id="passwordValidation">
+                    <div class="validation-title">Password must have:</div>
+                    <ul class="validation-rules">
+                        <li id="rule-length" class="invalid">
+                            <i class="fas fa-times"></i>
+                            At least 8 characters
+                        </li>
+                        <li id="rule-uppercase" class="invalid">
+                            <i class="fas fa-times"></i>
+                            One uppercase letter (A-Z)
+                        </li>
+                        <li id="rule-lowercase" class="invalid">
+                            <i class="fas fa-times"></i>
+                            One lowercase letter (a-z)
+                        </li>
+                        <li id="rule-special" class="invalid">
+                            <i class="fas fa-times"></i>
+                            One special character (!@#$% etc.)
+                        </li>
+                        <li id="rule-match" class="invalid">
+                            <i class="fas fa-times"></i>
+                            Passwords match
+                        </li>
+                    </ul>
+                    <div class="password-strength">
+                        <div class="strength-bar" id="strength-bar"></div>
+                    </div>
+                </div>
+                
+                <button type="submit" class="signup-btn" id="signupBtn">Create Account</button>
+            </form>
+            
+            <div class="auth-links">
+                <p>Already have an account? <a href="{{ url_for('login') }}">Sign in here</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/signup.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/otp.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/security.js') }}"></script>
+
+</body>
+</html>

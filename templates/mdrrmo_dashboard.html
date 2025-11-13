@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDRRMO Dashboard - 1TERA Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="admin-body">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="admin-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image">
+                <div class="logo-text">
+                    <small>ONE Tigbauan Emergency Response System</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-header-right">
+            <!-- Notification Bell -->
+            <button class="notification-bell" id="notificationBell" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            
+            <!-- Send Alert Button -->
+            <button class="btn-send-alert" onclick="openSendAlertModal()">
+                <i class="fas fa-bullhorn"></i>
+                <span class="btn-text">Send Alert</span>
+                <span class="action-text">Alert</span>
+            </button>
+            
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <div class="user-name">{{ session.admin_name }}</div>
+                    <div class="user-role">{{ session.admin_role|replace('_', ' ')|title }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="btn-text">Logout</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- MDRRMO Sidebar -->
+    <nav class="admin-sidebar" id="adminSidebar">
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin.mdrrmo_dashboard') }}" class="menu-item active">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </a>
+            
+            <a href="{{ url_for('admin.admin_reports') }}" class="menu-item">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Emergency Reports</span>
+                {% if stats.pending_reports > 0 %}
+                <span class="menu-badge">{{ stats.pending_reports }}</span>
+                {% endif %}
+            </a>
+
+            <a href="{{ url_for('admin.admin_users_feedback') }}" class="menu-item">
+                <i class="fas fa-comments"></i>
+                <span>User Feedbacks</span>
+                {% if feedbacks and feedbacks|length > 0 %}
+                <span class="menu-badge">{{ feedbacks|length }}</span>
+                {% endif %}
+            </a>
+
+            <a href="{{ url_for('index') }}" class="menu-item public-portal">
+                <i class="fas fa-external-link-alt"></i>
+                <span>Public Portal</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <div class="admin-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="admin-flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Header -->
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>MDRRMO Dashboard</h1>
+                    <p>Welcome back, {{ session.admin_name }}! Municipal Disaster Risk Reduction and Management Office Overview.</p>
+                    <div class="header-stats">
+                        <div class="stat-badge">
+                            <i class="fas fa-clock"></i>
+                            <span>{{ stats.pending_reports or 0 }} Pending</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-spinner"></i>
+                            <span>{{ stats.in_progress_reports or 0 }} In Progress</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-check-circle"></i>
+                            <span>{{ stats.resolved_reports or 0 }} Resolved</span>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.total_reports or 0 }}</div>
+                        <div class="stat-label">Total Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon today">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ today_reports }}</div>
+                        <div class="stat-label">Today's Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon pending">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.pending_reports or 0 }}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon resolved">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.resolved_reports or 0 }}</div>
+                        <div class="stat-label">Resolved</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-section">
+                <!-- Chart Controls -->
+                <div class="chart-controls">
+                    <h3>Reports Analytics</h3>
+                    <div class="period-filters">
+                        <button class="period-btn active" data-period="7days">Last 7 Days</button>
+                        <button class="period-btn" data-period="30days">Last 30 Days</button>
+                        <button class="period-btn" data-period="90days">Last 90 Days</button>
+                        <button class="period-btn" data-period="1year">Last Year</button>
+                    </div>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="charts-grid">
+                    <!-- Line Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-line"></i> Reports Trend</h4>
+                            <small>Total reports over time</small>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="lineChart" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Bar Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-bar"></i> Emergency Types</h4>
+                            <small>Distribution by type</small>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="barChart" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Multi-Axis Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-area"></i> Status by Type</h4>
+                            <small>Multi-axis visualization</small>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="multiAxisChart" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Dual Axis Chart -->
+                    <div class="chart-card full-width">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-line"></i> Detailed Analysis</h4>
+                            <small>Dual axis bar and line chart</small>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="dualAxisChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Section -->
+            <div class="activity-section">
+                <div class="activity-grid">
+                    <!-- Recent Reports -->
+                    <div class="activity-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-exclamation-triangle"></i> Recent Emergency Reports</h3>
+                            <a href="{{ url_for('admin.admin_reports') }}" class="view-all">View All</a>
+                        </div>
+                        <div class="card-content">
+                            {% if recent_reports %}
+                            <div class="reports-list">
+                                {% for report in recent_reports %}
+                                <div class="report-item">
+                                    <div class="report-type {{ report.emergency_type }}">
+                                        <i class="fas fa-{% if report.emergency_type == 'fire' %}fire{% elif report.emergency_type == 'medical' %}truck-medical{% elif report.emergency_type == 'natural' %}house-tsunami{% elif report.emergency_type == 'accident' %}car-burst{% else %}circle-exclamation{% endif %}"></i>
+                                    </div>
+                                    <div class="report-details">
+                                        <div class="report-title">{{ report.emergency_type|title }} Emergency</div>
+                                        <div class="report-meta">
+                                            <i class="fas fa-map-marker-alt"></i>
+                                            {{ report.location|default('Unknown Location') }}
+                                        </div>
+                                        <div class="report-user">
+                                            <i class="fas fa-user"></i>
+                                            {{ report.fname }} {{ report.lname }}
+                                        </div>
+                                    </div>
+                                    <div class="report-status status-{{ report.status }}">
+                                        {{ report.status|replace('_', ' ')|title }}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-inbox"></i>
+                                <h3>No Recent Reports</h3>
+                                <p>No emergency reports in the last 24 hours.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- User Feedbacks -->
+                    <div class="activity-card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-comments"></i> Recent User Feedbacks</h3>
+                            <button class="view-all" onclick="loadAllFeedbacks()">View All</button>
+                        </div>
+                        <div class="card-content">
+                            {% if feedbacks %}
+                            <div class="feedbacks-list">
+                                {% for feedback in feedbacks %}
+                                <div class="feedback-item">
+                                    <div class="feedback-header">
+                                        <div class="feedback-user">
+                                            {{ feedback.fname }} {{ feedback.lname }}
+                                            <span class="feedback-type">{{ feedback.feedback_type|title }}</span>
+                                        </div>
+                                        <div class="feedback-rating">
+                                            {% for i in range(5) %}
+                                            <i class="fas fa-star rating-star {% if i < feedback.rating %}filled{% endif %}"></i>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    <div class="feedback-message">
+                                        {{ feedback.message }}
+                                    </div>
+                                    <div class="feedback-meta">
+                                        <span class="feedback-time">{{ feedback.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                                        <span class="feedback-email">{{ feedback.email }}</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="empty-state">
+                                <i class="fas fa-comments"></i>
+                                <h3>No Feedbacks</h3>
+                                <p>No user feedbacks received yet.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Send Alert Modal -->
+    <div id="sendAlertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bullhorn"></i> Send Emergency Alert</h3>
+                <button class="modal-close" onclick="closeModal('sendAlertModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="alertForm">
+                    <div class="form-group">
+                        <label for="alertType" class="form-label">Alert Type</label>
+                        <select id="alertType" name="alert_type" class="form-input" required>
+                            <option value="info">Information</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertMessage" class="form-label">Alert Message</label>
+                        <textarea id="alertMessage" name="alert_message" class="form-textarea" rows="4" placeholder="Enter alert message..." required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('sendAlertModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notificationsList">
+                <!-- Notifications will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- All Feedbacks Modal -->
+    <div id="allFeedbacksModal" class="modal">
+        <div class="modal-content large">
+            <div class="modal-header">
+                <h3><i class="fas fa-comments"></i> All User Feedbacks</h3>
+                <button class="modal-close" onclick="closeModal('allFeedbacksModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="allFeedbacksList">
+                    <!-- All feedbacks will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart instances
+        let lineChart, barChart, multiAxisChart, dualAxisChart;
+        let currentPeriod = '7days';
+
+        // Initialize charts
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            setupPeriodFilters();
+            loadNotifications();
+            
+            // Refresh notifications every 30 seconds
+            setInterval(loadNotifications, 30000);
+        });
+
+        function initializeCharts() {
+            const chartData = {{ chart_data|tojson|safe }};
+            
+            // Line Chart
+            const lineCtx = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(lineCtx, {
+                type: 'line',
+                data: chartData.line_chart,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Reports'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Bar Chart
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: chartData.bar_chart,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Reports'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Multi-Axis Chart
+            const multiCtx = document.getElementById('multiAxisChart').getContext('2d');
+            multiAxisChart = new Chart(multiCtx, {
+                type: 'line',
+                data: chartData.multi_axis,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    stacked: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Status Distribution by Emergency Type'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Number of Reports'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: false,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        },
+                    }
+                }
+            });
+
+            // Initialize Dual Axis Chart
+            initializeDualAxisChart();
+        }
+
+        function initializeDualAxisChart() {
+            const dualCtx = document.getElementById('dualAxisChart').getContext('2d');
+            const chartData = {{ chart_data|tojson|safe }};
+            
+            dualAxisChart = new Chart(dualCtx, {
+                type: 'bar',
+                data: {
+                    labels: chartData.bar_chart.labels,
+                    datasets: [
+                        {
+                            label: 'Total Reports',
+                            data: chartData.bar_chart.datasets[0].data,
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                            borderColor: 'rgb(59, 130, 246)',
+                            borderWidth: 2,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Trend Line',
+                            data: chartData.bar_chart.datasets[0].data,
+                            type: 'line',
+                            borderColor: 'rgb(239, 68, 68)',
+                            borderWidth: 3,
+                            fill: false,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Total Reports'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Trend'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+        }
+
+        function setupPeriodFilters() {
+            const periodButtons = document.querySelectorAll('.period-btn');
+            
+            periodButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    periodButtons.forEach(btn => btn.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    
+                    currentPeriod = this.dataset.period;
+                    updateCharts(currentPeriod);
+                });
+            });
+        }
+
+        function updateCharts(period) {
+            fetch(`/admin/get_chart_data?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const chartData = data.chart_data;
+                        
+                        // Update Line Chart
+                        lineChart.data.labels = chartData.line_chart.labels;
+                        lineChart.data.datasets[0].data = chartData.line_chart.datasets[0].data;
+                        lineChart.update();
+                        
+                        // Update Bar Chart
+                        barChart.data.labels = chartData.bar_chart.labels;
+                        barChart.data.datasets[0].data = chartData.bar_chart.datasets[0].data;
+                        barChart.update();
+                        
+                        // Update Multi-Axis Chart
+                        multiAxisChart.data.labels = chartData.multi_axis.labels;
+                        multiAxisChart.data.datasets = chartData.multi_axis.datasets;
+                        multiAxisChart.update();
+                        
+                        // Update Dual Axis Chart
+                        dualAxisChart.data.labels = chartData.bar_chart.labels;
+                        dualAxisChart.data.datasets[0].data = chartData.bar_chart.datasets[0].data;
+                        dualAxisChart.data.datasets[1].data = chartData.bar_chart.datasets[0].data;
+                        dualAxisChart.update();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating charts:', error);
+                });
+        }
+
+        function refreshDashboard() {
+            location.reload();
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('adminSidebar');
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        function openSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openNotifications() {
+            document.getElementById('notificationsModal').style.display = 'flex';
+            loadNotifications();
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationsModal').style.display = 'none';
+        }
+
+        // Enhanced Notification Functions
+        function handleNotificationClick(reportId) {
+            // Mark as read first
+            markAsRead(reportId);
+            
+            // Redirect to reports page with highlight
+            window.location.href = `{{ url_for('admin.admin_reports') }}#report-${reportId}`;
+        }
+
+        function loadNotifications() {
+            fetch('{{ url_for("admin.get_notifications") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('notificationsList');
+                    const badge = document.getElementById('notificationBadge');
+                    
+                    if (data.success) {
+                        if (data.notifications.length > 0) {
+                            let html = '';
+                            data.notifications.forEach(notification => {
+                                const isEmergencyReport = notification.is_emergency_report || true;
+                                const reportId = notification.report_id || notification.id;
+                                
+                                html += `
+                                    <div class="notification-item unread clickable-notification" 
+                                         onclick="handleNotificationClick(${reportId})"
+                                         data-report-id="${reportId}">
+                                        <div class="notification-title">
+                                            <i class="fas fa-${getNotificationIcon(notification.type)}"></i>
+                                            ${notification.title}
+                                            <i class="fas fa-external-link-alt link-icon"></i>
+                                        </div>
+                                        <div class="notification-message">${notification.message}</div>
+                                        <div class="notification-time">
+                                            ${new Date(notification.created_at).toLocaleString()}
+                                            <span class="report-badge">Report #${reportId}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            container.innerHTML = html;
+                            badge.textContent = data.notifications.length;
+                            badge.style.display = 'flex';
+                        } else {
+                            container.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-bell-slash"></i>
+                                    <h3>No Notifications</h3>
+                                    <p>You're all caught up!</p>
+                                </div>
+                            `;
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                });
+        }
+
+        function markAsRead(reportId) {
+            fetch(`{{ url_for("admin.mark_notification_read", notification_id=0) }}`.replace('0', reportId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the notification from UI
+                        const notificationElement = document.querySelector(`[data-report-id="${reportId}"]`);
+                        if (notificationElement) {
+                            notificationElement.classList.add('notification-removing');
+                            setTimeout(() => {
+                                notificationElement.remove();
+                                loadNotifications(); // Reload to update count
+                            }, 300);
+                        }
+                    }
+                });
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'info': 'info-circle',
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle',
+                'success': 'check-circle'
+            };
+            return icons[type] || 'bell';
+        }
+
+        function loadAllFeedbacks() {
+            fetch('{{ url_for("admin.get_feedbacks") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('allFeedbacksList');
+                    
+                    if (data.success && data.feedbacks.length > 0) {
+                        let html = '<div class="feedbacks-list">';
+                        data.feedbacks.forEach(feedback => {
+                            html += `
+                                <div class="feedback-item">
+                                    <div class="feedback-header">
+                                        <div class="feedback-user">
+                                            ${feedback.fname} ${feedback.lname}
+                                            <span class="feedback-type">${feedback.feedback_type}</span>
+                                        </div>
+                                        <div class="feedback-rating">
+                                            ${'<i class="fas fa-star rating-star filled"></i>'.repeat(feedback.rating)}
+                                            ${'<i class="fas fa-star rating-star"></i>'.repeat(5 - feedback.rating)}
+                                        </div>
+                                    </div>
+                                    <div class="feedback-message">
+                                        ${feedback.message}
+                                    </div>
+                                    <div class="feedback-meta">
+                                        <span class="feedback-time">${new Date(feedback.created_at).toLocaleString()}</span>
+                                        <span class="feedback-email">${feedback.email}</span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-comments"></i>
+                                <h3>No Feedbacks Available</h3>
+                                <p>There are no user feedbacks in the system.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    document.getElementById('allFeedbacksModal').style.display = 'flex';
+                })
+                .catch(error => {
+                    console.error('Error loading all feedbacks:', error);
+                });
+        }
+
+        // Alert form submission
+        document.getElementById('alertForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('{{ url_for("admin.send_alert") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('sendAlertModal');
+                    document.getElementById('alertForm').reset();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending alert:', error);
+                showNotification('Error sending alert', 'error');
+            });
+        });
+
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification-toast ${type}`;
+            notification.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal, .notification-modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Handle mobile view
+        function handleResize() {
+            const sidebar = document.getElementById('adminSidebar');
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('mobile-open');
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+    </script>
+</body>
+</html>

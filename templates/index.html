@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}1TERA - Emergency Response{% endblock %}
+
+{% block content %}
+<!-- Home Page -->
+<div class="page active" id="home-page">
+    <h2 class="section-title">Emergency Services</h2>
+    <div class="emergency-actions">
+        <a href="{{ url_for('emergency_report') }}" class="emergency-btn" id="reportEmergencyBtn">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>Report Emergency</span>
+        </a>
+    </div>
+
+    <h2 class="section-title">Quick Services</h2>
+    <div class="services-grid">
+        <a href="{{ url_for('hotlines') }}" class="service-item" id="hotlinesBtn">
+            <i class="fas fa-phone-alt"></i>
+            <span>Hotlines</span>
+        </a>
+        <a href="{{ url_for('heatmaps') }}" class="service-item" id="heatmapsBtn">
+            <i class="fas fa-map"></i>
+            <span>Heatmaps</span>
+        </a>
+        <a href="{{ url_for('view_status') }}" class="service-item" id="historyBtn">
+            <i class="fas fa-history"></i>
+            <span>View Status</span>
+        </a>
+        <a href="{{ url_for('feedback') }}" class="service-item" id="feedbackBtn">
+            <i class="fas fa-comment"></i>
+            <span>Feedback</span>
+        </a>
+    </div>
+
+    <h2 class="section-title">Emergency Alerts</h2>
+    <div class="card">
+        {% if alerts %}
+            {% for alert in alerts %}
+            <div class="alert-item {% if alert.alert_type == 'danger' %}alert-danger{% elif alert.alert_type == 'warning' %}alert-warning{% else %}alert-info{% endif %}">
+                <div class="alert-icon">
+                    {% if alert.alert_type == 'danger' %}
+                    <i class="fas fa-exclamation-circle"></i>
+                    {% elif alert.alert_type == 'warning' %}
+                    <i class="fas fa-exclamation-triangle"></i>
+                    {% else %}
+                    <i class="fas fa-info-circle"></i>
+                    {% endif %}
+                </div>
+                <div class="alert-details">
+                    <div class="alert-title">{{ alert.message }}</div>
+                    <div class="alert-meta">
+                        <i class="fas fa-clock"></i> {{ alert.created_at.strftime('%Y-%m-%d %H:%M') }}
+                        {% if alert.alert_type == 'danger' %}
+                        <span class="alert-type-badge alert-type-danger">Emergency</span>
+                        {% elif alert.alert_type == 'warning' %}
+                        <span class="alert-type-badge alert-type-warning">Warning</span>
+                        {% else %}
+                        <span class="alert-type-badge alert-type-info">Information</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center" style="padding: 2rem;">
+                <i class="fas fa-bell-slash" style="font-size: 3rem; color: #6b7280; margin-bottom: 1rem;"></i>
+                <p>No emergency alerts at the moment</p>
+                <p class="text-small" style="color: #6b7280; font-size: 0.9rem;">Stay safe and check back for updates</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+<script src="{{ url_for('static', filename='js/security.js') }}"></script>
+{% endblock %}

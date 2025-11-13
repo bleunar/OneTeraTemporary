@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}View Status - 1TERA{% endblock %}
+
+{% block content %}
+<!-- History Page -->
+<div class="page active" id="history-page">
+    <div class="page-header">
+        <h2 class="section-title">My Report History</h2>
+        <p class="page-subtitle">Your previous emergency reports</p>
+    </div>
+    
+    <div class="card">
+        {% if reports %}
+            <div class="reports-container">
+                {% for report in reports %}
+                <a href="{{ url_for('report_details', report_id=report.id) }}" class="report-link">
+                    <div class="report-item clickable">
+                        <div class="report-icon">
+                            {% if report.emergency_type == 'fire' %}
+                            <i class="fas fa-fire"></i>
+                            {% elif report.emergency_type == 'medical' %}
+                            <i class="fas fa-truck-medical"></i>
+                            {% elif report.emergency_type == 'natural' %}
+                            <i class="fas fa-house-tsunami"></i>
+                            {% elif report.emergency_type == 'accident' %}
+                            <i class="fas fa-car-burst"></i>
+                            {% else %}
+                            <i class="fas fa-circle-exclamation"></i>
+                            {% endif %}
+                        </div>
+                        <div class="report-details">
+                            <div class="report-title">{{ report.emergency_type|title }} Emergency</div>
+                            <div class="report-meta">{{ report.location if report.location else 'Unknown location' }} • {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                            
+                            <!-- Estimated Arrival Time -->
+                            {% if report.estimated_arrival and report.estimated_arrival != 'Not available' %}
+                            <div class="report-eta eta-arrival">
+                                <i class="fas fa-clock"></i> Estimated Arrival: <strong>{{ report.estimated_arrival }}</strong>
+                            </div>
+                            {% endif %}
+                            
+                            <div class="report-eta 
+                                {% if report.status == 'resolved' %}eta-low
+                                {% elif report.status == 'in_progress' %}eta-medium
+                                {% else %}eta-high{% endif %}">
+                                Status: {{ report.status|replace('_', ' ')|title }}
+                            </div>
+                            
+                            <!-- Response Type -->
+                            {% if report.response_type and report.response_type != 'Not dispatched' %}
+                            <div class="response-type">
+                                <i class="fas fa-ambulance"></i> Response: {{ report.response_type|title }}
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="report-status 
+                            {% if report.status == 'resolved' %}status-resolved
+                            {% elif report.status == 'in_progress' %}status-progress
+                            {% else %}status-pending{% endif %}">
+                            {{ report.status|replace('_', ' ')|title }}
+                        </div>
+                        <div class="report-arrow">
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h3>No Emergency Reports</h3>
+                <p>You haven't submitted any emergency reports yet.</p>
+                <a href="{{ url_for('emergency_report') }}" class="btn btn-primary">Report an Emergency</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

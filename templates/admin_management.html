@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Management - 1TERA Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body class="admin-body">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="admin-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image">
+                <div class="logo-text">
+                    <small>ONE Tigbauan Emergency Response System</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-header-right">
+            <!-- Notification Bell -->
+            <button class="notification-bell" id="notificationBell" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            
+            <!-- Send Alert Button -->
+            {% if session.admin_role in ['super_admin', 'radio_operator', 'mdrrmo'] %}
+            <button class="btn-send-alert" onclick="openSendAlertModal()">
+                <i class="fas fa-bullhorn"></i>
+                <span class="btn-text">Send Alert</span>
+                <span class="action-text">Alert</span>
+            </button>
+            {% endif %}
+            
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <div class="user-name">{{ session.admin_name }}</div>
+                    <div class="user-role">{{ session.admin_role|replace('_', ' ')|title }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="btn-text">Logout</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- admin sidebar -->
+<nav class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-menu">
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="menu-item">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+        </a>
+        
+        <a href="{{ url_for('admin.admin_reports') }}" class="menu-item">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>Emergency Reports</span>
+        </a>
+
+        <!-- FIXED ROUTE -->
+        <a href="{{ url_for('admin.admin_users_feedback') }}" class="menu-item">
+            <i class="fas fa-comments"></i>
+            <span>User Feedbacks</span>
+        </a>
+
+        <a href="{{ url_for('admin.admin_management') }}" class="menu-item active">
+            <i class="fas fa-users-cog"></i>
+            <span>Admin Management</span>
+        </a>
+
+        <a href="{{ url_for('index') }}" class="menu-item public-portal">
+            <i class="fas fa-external-link-alt"></i>
+            <span>Public Portal</span>
+        </a>
+    </div>
+</nav>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <div class="admin-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="admin-flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Header -->
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>Admin Management</h1>
+                    <p>Manage system administrators and their permissions</p>
+                    <div class="header-stats">
+                        <div class="stat-badge">
+                            <i class="fas fa-users"></i>
+                            <span>{{ admins|length }} Admin(s)</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-user-shield"></i>
+                            <span>{{ roles|length }} Role(s)</span>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Create Admin Card -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-plus"></i> Create New Admin</h3>
+                </div>
+                <div class="card-content">
+                    <form method="POST" action="{{ url_for('admin.create_admin') }}" class="admin-form" id="createAdminForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="username" class="form-label">Username *</label>
+                                <input type="text" id="username" name="username" class="form-input" required 
+                                       placeholder="Enter username">
+                                <div class="form-hint">Must be 3-20 characters, letters and numbers only</div>
+                            </div>
+                            <div class="form-group">
+                                <label for="email" class="form-label">Email *</label>
+                                <input type="email" id="email" name="email" class="form-input" required 
+                                       placeholder="Enter email address">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="full_name" class="form-label">Full Name *</label>
+                                <input type="text" id="full_name" name="full_name" class="form-input" required 
+                                       placeholder="Enter full name">
+                            </div>
+                            <div class="form-group">
+                                <label for="phone_number" class="form-label">Phone Number</label>
+                                <input type="tel" id="phone_number" name="phone_number" class="form-input" 
+                                       placeholder="Enter phone number">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="password" class="form-label">Password *</label>
+                                <input type="password" id="password" name="password" class="form-input" required 
+                                       placeholder="Enter password" minlength="6">
+                                <div class="password-strength" id="passwordStrength"></div>
+                            </div>
+                            <div class="form-group">
+                                <label for="role_id" class="form-label">Role *</label>
+                                <select id="role_id" name="role_id" class="form-input" required>
+                                    <option value="">Select Admin Role</option>
+                                    {% for role in roles %}
+                                    <option value="{{ role.id }}">{{ role.role_name|replace('_', ' ')|title }}</option>
+                                    {% endfor %}
+                                </select>
+                                <div class="form-hint">Select the appropriate role for this admin</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="reset" class="btn btn-secondary">
+                                <i class="fas fa-redo"></i> Reset Form
+                            </button>
+                            <button type="submit" class="btn btn-primary" id="createAdminBtn">
+                                <i class="fas fa-user-plus"></i> Create Admin Account
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Admins List -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-users"></i> System Administrators</h3>
+                    <span class="admin-count">{{ admins|length }} admin(s)</span>
+                </div>
+                <div class="card-content">
+                    {% if admins %}
+                    <div class="table-container">
+                        <table class="admins-table">
+                            <thead>
+                                <tr>
+                                    <th>Admin Info</th>
+                                    <th>Role</th>
+                                    <th>Status</th>
+                                    <th>Last Login</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for admin in admins %}
+                                <tr>
+                                    <td class="admin-info">
+                                        <div class="admin-avatar">
+                                            <i class="fas fa-user-circle"></i>
+                                        </div>
+                                        <div class="admin-details">
+                                            <div class="admin-name">
+                                                <strong>{{ admin.full_name }}</strong>
+                                                {% if admin.id == session.admin_id %}
+                                                <span class="current-user-badge">You</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="admin-username">@{{ admin.username }}</div>
+                                            <div class="admin-contact">
+                                                <small><i class="fas fa-envelope"></i> {{ admin.email }}</small>
+                                                {% if admin.phone_number %}
+                                                <small><i class="fas fa-phone"></i> {{ admin.phone_number }}</small>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="admin-role">
+                                        <span class="role-badge role-{{ admin.role_name }}">
+                                            <i class="fas fa-{% if admin.role_name == 'super_admin' %}crown{% elif admin.role_name == 'radio_operator' %}broadcast-tower{% elif admin.role_name == 'mayor' %}landmark{% elif admin.role_name == 'engineer' %}cogs{% elif admin.role_name == 'brgy_admin' %}building{% elif admin.role_name == 'mswdo' %}hands-helping{% elif admin.role_name == 'mdrrmo' %}house-tsunami{% else %}user-shield{% endif %}"></i>
+                                            {{ admin.role_name|replace('_', ' ')|title }}
+                                        </span>
+                                    </td>
+                                    <td class="admin-status">
+                                        {% if admin.is_active %}
+                                        <span class="status-badge status-active">
+                                            <i class="fas fa-check-circle"></i> Active
+                                        </span>
+                                        {% else %}
+                                        <span class="status-badge status-inactive">
+                                            <i class="fas fa-times-circle"></i> Inactive
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="admin-last-login">
+                                        {% if admin.last_login %}
+                                        <div class="login-time">{{ admin.last_login.strftime('%Y-%m-%d') }}</div>
+                                        <div class="login-date">{{ admin.last_login.strftime('%H:%M') }}</div>
+                                        {% else %}
+                                        <em>Never logged in</em>
+                                        {% endif %}
+                                    </td>
+                                    <td class="admin-created">
+                                        {{ admin.created_at.strftime('%Y-%m-%d') }}
+                                    </td>
+                                    <td class="admin-actions">
+                                        {% if admin.id != session.admin_id %}
+                                        {% if admin.is_active %}
+                                        <button class="btn-action btn-deactivate" onclick="toggleAdmin({{ admin.id }})" 
+                                                title="Deactivate Admin" data-tooltip="Deactivate this admin account">
+                                            <i class="fas fa-user-slash"></i>
+                                        </button>
+                                        {% else %}
+                                        <button class="btn-action btn-activate" onclick="toggleAdmin({{ admin.id }})" 
+                                                title="Activate Admin" data-tooltip="Activate this admin account">
+                                            <i class="fas fa-user-check"></i>
+                                        </button>
+                                        {% endif %}
+                                        {% else %}
+                                        <span class="no-action" title="Cannot modify your own account">-</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-users"></i>
+                        <h3>No Administrators Found</h3>
+                        <p>There are no admin accounts in the system yet.</p>
+                        <p>Create the first admin account using the form above.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Roles Information -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-user-shield"></i> Admin Roles & Permissions</h3>
+                </div>
+                <div class="card-content">
+                    <div class="roles-grid">
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-crown"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>Super Admin</h4>
+                                    <span class="role-badge role-super_admin">Full Access</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>Complete system access with full administrative privileges including user management and system configuration.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>Create and manage all admin accounts</li>
+                                    <li>View and manage all emergency reports</li>
+                                    <li>Send system-wide alerts</li>
+                                    <li>Access all dashboard features</li>
+                                    <li>System configuration and settings</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-broadcast-tower"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>Radio Operator</h4>
+                                    <span class="role-badge role-radio_operator">Dispatch</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>Emergency response coordination and dispatch management with real-time response tracking.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>View all emergency reports</li>
+                                    <li>Update report status and dispatch responses</li>
+                                    <li>Calculate estimated arrival times</li>
+                                    <li>Access emergency hotlines</li>
+                                    <li>Coordinate with response teams</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-house-tsunami"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>MDRRMO</h4>
+                                    <span class="role-badge role-mdrrmo">Emergency Management</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>Municipal Disaster Risk Reduction and Management Office with full emergency management capabilities.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>View and manage all emergency reports</li>
+                                    <li>Dispatch emergency responses</li>
+                                    <li>Send system-wide alerts</li>
+                                    <li>Update report status</li>
+                                    <li>Access all dashboard features</li>
+                                    <li>System configuration access</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-landmark"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>Mayor</h4>
+                                    <span class="role-badge role-mayor">View Only</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>View-only access for monitoring emergency situations and system statistics without modification capabilities.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>View all emergency reports</li>
+                                    <li>Access system statistics</li>
+                                    <li>Monitor response activities</li>
+                                    <li>Read-only dashboard access</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>Engineer</h4>
+                                    <span class="role-badge role-engineer">Technical</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>Technical support and system maintenance access for engineering department requirements.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>System maintenance access</li>
+                                    <li>Technical support features</li>
+                                    <li>Infrastructure monitoring</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-building"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>Barangay Admin</h4>
+                                    <span class="role-badge role-brgy_admin">Local</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>Barangay-level administration access for local emergency management and community coordination.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>Barangay-specific reports</li>
+                                    <li>Local emergency management</li>
+                                    <li>Community coordination</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="role-card">
+                            <div class="role-header">
+                                <div class="role-icon">
+                                    <i class="fas fa-hands-helping"></i>
+                                </div>
+                                <div class="role-info">
+                                    <h4>MSWDO</h4>
+                                    <span class="role-badge role-mswdo">Social</span>
+                                </div>
+                            </div>
+                            <div class="role-description">
+                                <p>Social welfare and development office access for humanitarian response and social services coordination.</p>
+                            </div>
+                            <div class="role-permissions">
+                                <h5>Permissions:</h5>
+                                <ul>
+                                    <li>Social services coordination</li>
+                                    <li>Humanitarian response</li>
+                                    <li>Welfare assistance management</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Send Alert Modal -->
+    <div id="sendAlertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bullhorn"></i> Send Emergency Alert</h3>
+                <button class="modal-close" onclick="closeModal('sendAlertModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="alertForm">
+                    <div class="form-group">
+                        <label for="alertType" class="form-label">Alert Type</label>
+                        <select id="alertType" name="alert_type" class="form-input" required>
+                            <option value="info">Information</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertMessage" class="form-label">Alert Message</label>
+                        <textarea id="alertMessage" name="alert_message" class="form-textarea" rows="4" placeholder="Enter alert message..." required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('sendAlertModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notificationsList">
+                <!-- Notifications will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mobile menu functionality
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('adminSidebar');
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        function handleResize() {
+            const sidebar = document.getElementById('adminSidebar');
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('mobile-open');
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        function toggleAdmin(adminId) {
+            if (confirm('Are you sure you want to change this admin account status?')) {
+                window.location.href = `{{ url_for('admin.toggle_admin', admin_id=0) }}`.replace('0', adminId);
+            }
+        }
+
+        function refreshPage() {
+            location.reload();
+        }
+
+        // Enhanced Notification Functions
+        function handleNotificationClick(reportId) {
+            // Mark as read first
+            markAsRead(reportId);
+            
+            // Redirect to reports page with highlight
+            window.location.href = `{{ url_for('admin.admin_reports') }}#report-${reportId}`;
+        }
+
+        function openSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openNotifications() {
+            document.getElementById('notificationsModal').style.display = 'flex';
+            loadNotifications();
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationsModal').style.display = 'none';
+        }
+
+        function loadNotifications() {
+            fetch('{{ url_for("admin.get_notifications") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('notificationsList');
+                    const badge = document.getElementById('notificationBadge');
+                    
+                    if (data.success) {
+                        if (data.notifications.length > 0) {
+                            let html = '';
+                            data.notifications.forEach(notification => {
+                                const isEmergencyReport = notification.is_emergency_report || true;
+                                const reportId = notification.report_id || notification.id;
+                                
+                                html += `
+                                    <div class="notification-item unread clickable-notification" 
+                                         onclick="handleNotificationClick(${reportId})"
+                                         data-report-id="${reportId}">
+                                        <div class="notification-title">
+                                            <i class="fas fa-${getNotificationIcon(notification.type)}"></i>
+                                            ${notification.title}
+                                            <i class="fas fa-external-link-alt link-icon"></i>
+                                        </div>
+                                        <div class="notification-message">${notification.message}</div>
+                                        <div class="notification-time">
+                                            ${new Date(notification.created_at).toLocaleString()}
+                                            <span class="report-badge">Report #${reportId}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            container.innerHTML = html;
+                            badge.textContent = data.notifications.length;
+                            badge.style.display = 'flex';
+                        } else {
+                            container.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-bell-slash"></i>
+                                    <h3>No Notifications</h3>
+                                    <p>You're all caught up!</p>
+                                </div>
+                            `;
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                });
+        }
+
+        function markAsRead(notificationId) {
+            fetch(`{{ url_for("admin.mark_notification_read", notification_id=0) }}`.replace('0', notificationId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the notification from UI
+                        const notificationElement = document.querySelector(`[data-report-id="${notificationId}"]`);
+                        if (notificationElement) {
+                            notificationElement.classList.add('notification-removing');
+                            setTimeout(() => {
+                                notificationElement.remove();
+                                loadNotifications(); // Reload to update count
+                            }, 300);
+                        }
+                    }
+                });
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'info': 'info-circle',
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle',
+                'success': 'check-circle'
+            };
+            return icons[type] || 'bell';
+        }
+
+        // Password strength indicator
+        document.getElementById('password').addEventListener('input', function(e) {
+            const password = e.target.value;
+            const strength = checkPasswordStrength(password);
+            const indicator = document.getElementById('passwordStrength');
+            
+            indicator.className = `password-strength strength-${strength.level}`;
+            indicator.innerHTML = `<i class="fas fa-${strength.icon}"></i> ${strength.text}`;
+        });
+
+        function checkPasswordStrength(password) {
+            let score = 0;
+            let feedback = [];
+            
+            if (password.length >= 8) score++;
+            else feedback.push('at least 8 characters');
+            
+            if (/[A-Z]/.test(password)) score++;
+            else feedback.push('one uppercase letter');
+            
+            if (/[a-z]/.test(password)) score++;
+            else feedback.push('one lowercase letter');
+            
+            if (/[0-9]/.test(password)) score++;
+            else feedback.push('one number');
+            
+            if (/[^A-Za-z0-9]/.test(password)) score++;
+            else feedback.push('one special character');
+            
+            const levels = [
+                { level: 'very-weak', text: 'Very Weak', icon: 'exclamation-triangle', color: '#dc2626' },
+                { level: 'weak', text: 'Weak', icon: 'exclamation-circle', color: '#ea580c' },
+                { level: 'fair', text: 'Fair', icon: 'check-circle', color: '#d97706' },
+                { level: 'good', text: 'Good', icon: 'shield-alt', color: '#059669' },
+                { level: 'strong', text: 'Strong', icon: 'shield-check', color: '#065f46' }
+            ];
+            
+            return { 
+                level: levels[Math.min(score, 4)].level, 
+                text: levels[Math.min(score, 4)].text, 
+                icon: levels[Math.min(score, 4)].icon,
+                feedback: feedback
+            };
+        }
+
+        // Form validation
+        document.getElementById('createAdminForm').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
+            if (password.length < 6) {
+                e.preventDefault();
+                alert('Password must be at least 6 characters long.');
+                return false;
+            }
+        });
+
+        // Alert form submission
+        document.getElementById('alertForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('{{ url_for("admin.send_alert") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('sendAlertModal');
+                    document.getElementById('alertForm').reset();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending alert:', error);
+                showNotification('Error sending alert', 'error');
+            });
+        });
+
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification-toast ${type === 'error' ? 'error' : 'success'}`;
+            notification.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    ${message}
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        // Auto-hide flash messages
+        setTimeout(() => {
+            const flashMessages = document.querySelector('.admin-flash-messages');
+            if (flashMessages) {
+                flashMessages.style.opacity = '0';
+                setTimeout(() => flashMessages.remove(), 300);
+            }
+        }, 5000);
+
+        // Tooltip functionality
+        document.querySelectorAll('[data-tooltip]').forEach(element => {
+            element.addEventListener('mouseenter', function() {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'tooltip';
+                tooltip.textContent = this.getAttribute('data-tooltip');
+                document.body.appendChild(tooltip);
+                
+                const rect = this.getBoundingClientRect();
+                tooltip.style.left = rect.left + 'px';
+                tooltip.style.top = (rect.top - tooltip.offsetHeight - 5) + 'px';
+                
+                this.tooltip = tooltip;
+            });
+            
+            element.addEventListener('mouseleave', function() {
+                if (this.tooltip) {
+                    this.tooltip.remove();
+                    this.tooltip = null;
+                }
+            });
+        });
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal, .notification-modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Load notifications on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            // Refresh notifications every 30 seconds
+            setInterval(loadNotifications, 30000);
+        });
+    </script>
+</body>
+</html>

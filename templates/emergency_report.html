@@ -1,0 +1,722 @@
+{% extends "base.html" %}
+
+{% block title %}Report Emergency - 1TERA{% endblock %}
+
+{% block content %}
+<!-- Emergency Types Page -->
+<div class="page active" id="emergency-types-page">
+    <h2 class="section-title">Select Emergency Type</h2>
+    <p class="text-center mb-3">Please select the type of emergency you want to report</p>
+    
+    <div class="emergency-types">
+        <a href="#" class="emergency-type" data-type="fire">
+            <i class="fas fa-fire"></i>
+            <span>Fire Emergency</span>
+        </a>
+        <a href="#" class="emergency-type" data-type="medical">
+            <i class="fas fa-truck-medical"></i>
+            <span>Medical Emergency</span>
+        </a>
+        <a href="#" class="emergency-type" data-type="natural">
+            <i class="fas fa-house-tsunami"></i>
+            <span>Natural Disaster</span>
+        </a>
+        <a href="#" class="emergency-type" data-type="accident">
+            <i class="fas fa-car-burst"></i>
+            <span>Accident</span>
+        </a>
+        <a href="#" class="emergency-type" data-type="other">
+            <i class="fas fa-circle-exclamation"></i>
+            <span>Other Emergency</span>
+        </a>
+    </div>
+    
+    <div class="mt-3">
+        <a href="#" class="btn btn-block" id="continueBtn" style="opacity: 0.5; pointer-events: none;">
+            <i class="fas fa-arrow-right"></i> Continue
+        </a>
+    </div>
+</div>
+
+<!-- Report Form Page -->
+<div class="page" id="report-form-page">
+    <h2 class="section-title">Report Emergency</h2>
+    
+    <!-- Location Loading State -->
+    <div id="locationLoading" class="location-loading">
+        <i class="fas fa-satellite-dish"></i>
+        <span>Acquiring precise GPS location...</span>
+        <span class="gps-indicator gps-acquiring">
+            <i class="fas fa-sync-alt fa-spin"></i> GPS
+        </span>
+    </div>
+    
+    <!-- Location Error Section -->
+    <div id="locationError" class="location-permission location-permission-error" style="display: none;">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h3>Location Access Required</h3>
+        <p id="locationErrorMessage">Location services are disabled. Please enable location to submit an emergency report.</p>
+        <button class="btn btn-primary mt-2" id="retryLocationBtn">
+            <i class="fas fa-location-crosshairs"></i> Retry Location
+        </button>
+        <button class="btn btn-secondary mt-2" id="enableLocationBtn">
+            <i class="fas fa-cog"></i> Enable Location Settings
+        </button>
+    </div>
+    
+    <form method="POST" action="{{ url_for('emergency_report') }}" id="emergencyReportForm" enctype="multipart/form-data">
+        <input type="hidden" id="emergencyType" name="emergency_type">
+        <input type="hidden" id="latitude" name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+        
+        <div class="form-group">
+            <label for="emergencyTypeDisplay" class="form-label required-field">Emergency Type</label>
+            <input type="text" id="emergencyTypeDisplay" class="form-input" readonly>
+        </div>
+        
+        <div class="form-group">
+            <label for="emergencyDescription" class="form-label">Emergency Description</label>
+            <textarea id="emergencyDescription" name="description" class="form-textarea" placeholder="Please describe the emergency in detail (what happened, number of people involved, severity, etc.)..." rows="4"></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="location" class="form-label required-field">Your Location Details</label>
+            <input type="text" id="location" name="location" class="form-input" placeholder="Acquiring your location..." readonly required>
+            <div class="location-accuracy" id="locationAccuracy"></div>
+            
+            <!-- Location Details Display -->
+            <div class="location-details" id="locationDetails" style="display: none;">
+                <div class="location-detail-item">
+                    <strong>Barangay:</strong> <span id="barangayDisplay">Detecting...</span>
+                </div>
+                <div class="location-detail-item">
+                    <strong>Municipality:</strong> <span id="municipalityDisplay">Detecting...</span>
+                </div>
+                <div class="location-detail-item">
+                    <strong>Full Address:</strong> <span id="fullAddressDisplay">Detecting...</span>
+                </div>
+            </div>
+            
+            <div class="map-container">
+                <div id="locationMap"></div>
+                <div id="locationStatus" class="location-status">
+                    <i class="fas fa-map-marker-alt"></i><br>
+                    Acquiring your location...
+                </div>
+            </div>
+            <div class="location-coordinates" id="locationCoordinates" style="display: none;"></div>
+        </div>
+        
+        <div class="form-group">
+            <label for="emergencyImage" class="form-label">Attach Emergency Photo</label>
+            <input type="file" id="emergencyImage" name="emergency_image" accept="image/*" capture="environment" class="form-input" style="display: none;">
+            <small class="text-muted">Capture a photo of the emergency situation (highly recommended for faster response)</small>
+            
+            <div id="photoPreview" class="mt-2" style="display: none; text-align: center; position: relative;">
+                <img id="previewImg" style="max-width: 100%; max-height: 200px; border-radius: 8px;">
+                <button type="button" class="remove-image" onclick="removeImage()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <button type="button" class="btn btn-primary" style="flex: 1;" id="capturePhotoBtn">
+                    <i class="fas fa-camera"></i> Capture Photo
+                </button>
+                <button type="button" class="btn btn-secondary" style="flex: 1;" id="galleryBtn">
+                    <i class="fas fa-image"></i> Choose from Gallery
+                </button>
+            </div>
+        </div>
+        
+        <!-- Terms and Conditions - Minimalist Version -->
+        <div class="form-group">
+            <div class="terms-container">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="accept_terms" name="accept_terms" value="1" required>
+                    <span class="checkmark"></span>
+                    I accept the <a href="#" class="terms-link" onclick="showTermsModal(event)">Terms and Conditions</a>
+                </label>
+            </div>
+        </div>
+        
+        <button type="submit" class="btn btn-danger btn-block" id="submitBtn" disabled>
+            <i class="fas fa-paper-plane"></i> Submit Emergency Report
+        </button>
+    </form>
+</div>
+
+<!-- Terms and Conditions Modal - Minimalist -->
+<!-- Terms and Conditions Modal - Minimalist -->
+<div id="termsModal" class="modal">
+    <div class="modal-content terms-modal">
+        <div class="modal-header">
+            <h3>1TERA Terms and Conditions</h3>
+            <button class="modal-close" onclick="closeTermsModal()">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="terms-content">
+                
+                <div class="terms-section">
+                    <p><strong>By using 1TERA, you agree to provide accurate and truthful information when reporting emergencies.</strong> Submitting false or misleading reports is a criminal offense under Republic Act No. 10951 and may result in imprisonment, fines of up to ₱100,000, and legal action.</p>
+                </div>
+                
+                <div class="terms-section">
+                    <p><strong>Your emergency details, including location and uploaded images, may be shared with authorized responders</strong> to ensure proper assistance. Data collected through this system will only be used for legitimate emergency response and may serve as evidence if required by law.</p>
+                </div>
+                
+                <div class="terms-section">
+                    <p><strong>Please ensure your location is accurate and move to an open area if prompted.</strong> 1TERA is not liable for any delays or issues caused by inaccurate data, poor signal, or user error.</p>
+                </div>
+                
+                <div class="terms-section">
+                    <p><strong>By submitting a report, you acknowledge that you have read, understood, and agreed to these Terms and Conditions</strong> and consent to the use of your data for emergency response purposes.</p>
+                </div>
+                
+                <div class="terms-section">
+                    <p><strong>For inquiries, contact:</strong><br>
+                    onetigbauanemergencyresponse@gmail.com<br>
+                    or call 0912-502-7180.</p>
+                </div>
+                
+                <div class="legal-notice">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Use 1TERA responsibly. False reporting endangers lives.</span>
+                </div>
+                
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeTermsModal()">
+                I Understand
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let selectedEmergencyType = null;
+        let userLocation = null;
+        let locationMap = null;
+        let userMarker = null;
+        let accuracyCircle = null;
+        let locationWatchId = null;
+        let locationRetryCount = 0;
+        const MAX_RETRY_COUNT = 3;
+        
+        // DOM Elements
+        const emergencyTypes = document.querySelectorAll('.emergency-type');
+        const continueBtn = document.getElementById('continueBtn');
+        const emergencyTypeInput = document.getElementById('emergencyType');
+        const emergencyTypeDisplay = document.getElementById('emergencyTypeDisplay');
+        const submitBtn = document.getElementById('submitBtn');
+        const retryLocationBtn = document.getElementById('retryLocationBtn');
+        const enableLocationBtn = document.getElementById('enableLocationBtn');
+        const locationLoading = document.getElementById('locationLoading');
+        const locationError = document.getElementById('locationError');
+        const locationStatus = document.getElementById('locationStatus');
+        const locationInput = document.getElementById('location');
+        const locationDetails = document.getElementById('locationDetails');
+        const barangayDisplay = document.getElementById('barangayDisplay');
+        const municipalityDisplay = document.getElementById('municipalityDisplay');
+        const fullAddressDisplay = document.getElementById('fullAddressDisplay');
+        const acceptTermsCheckbox = document.getElementById('accept_terms');
+
+        // Terms and Conditions functions
+        window.showTermsModal = function(e) {
+            if (e) e.preventDefault();
+            document.getElementById('termsModal').style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        };
+        
+        window.closeTermsModal = function() {
+            document.getElementById('termsModal').style.display = 'none';
+            document.body.style.overflow = 'auto';
+        };
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', function(event) {
+            const modal = document.getElementById('termsModal');
+            if (event.target === modal) {
+                closeTermsModal();
+            }
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeTermsModal();
+            }
+        });
+
+        // Show modal when user continues to report form
+        continueBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (selectedEmergencyType) {
+                document.getElementById('emergency-types-page').classList.remove('active');
+                document.getElementById('report-form-page').classList.add('active');
+                initializeLocationMap();
+                startLocationTracking();
+            }
+        });
+
+        // Retry location button
+        retryLocationBtn.addEventListener('click', function() {
+            locationRetryCount = 0;
+            locationError.style.display = 'none';
+            locationLoading.style.display = 'flex';
+            startLocationTracking();
+        });
+
+        // Enable location settings button
+        enableLocationBtn.addEventListener('click', function() {
+            // Guide user to enable location settings
+            if (navigator.userAgent.includes('Android') || navigator.userAgent.includes('Mobile')) {
+                alert('Please enable location services in your device settings:\n\n1. Go to Settings > Location\n2. Turn on Location Services\n3. Set mode to "High Accuracy"\n4. Return to this app and retry.');
+            } else {
+                alert('Please enable location services in your browser settings and refresh the page.');
+            }
+        });
+
+        // Emergency type selection
+        emergencyTypes.forEach(type => {
+            type.addEventListener('click', function(e) {
+                e.preventDefault();
+                
+                // Remove active class from all types
+                emergencyTypes.forEach(t => t.classList.remove('active'));
+                
+                // Add active class to selected type
+                this.classList.add('active');
+                
+                // Enable continue button
+                continueBtn.style.opacity = '1';
+                continueBtn.style.pointerEvents = 'auto';
+                
+                // Set emergency type value
+                selectedEmergencyType = this.getAttribute('data-type');
+                const typeName = this.querySelector('span').textContent;
+                emergencyTypeInput.value = selectedEmergencyType;
+                emergencyTypeDisplay.value = typeName;
+            });
+        });
+        
+        // Image upload handling
+        const emergencyImageInput = document.getElementById('emergencyImage');
+        emergencyImageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                previewImage(file);
+            }
+        });
+        
+        // Camera capture button - opens camera directly
+        document.getElementById('capturePhotoBtn').addEventListener('click', function() {
+            const input = document.getElementById('emergencyImage');
+            input.setAttribute('capture', 'environment'); // Rear camera
+            input.click();
+        });
+        
+        // Gallery button - opens file picker without camera
+        document.getElementById('galleryBtn').addEventListener('click', function() {
+            const input = document.getElementById('emergencyImage');
+            input.removeAttribute('capture'); // Remove capture to open gallery
+            input.click();
+        });
+        
+        function initializeLocationMap() {
+            // Initialize map centered on Tigbauan
+            locationMap = L.map('locationMap').setView([10.6747, 122.3964], 13);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(locationMap);
+            
+            // Add scale control
+            L.control.scale({ imperial: false }).addTo(locationMap);
+        }
+        
+        function startLocationTracking() {
+            const latitudeInput = document.getElementById('latitude');
+            const longitudeInput = document.getElementById('longitude');
+            const locationAccuracy = document.getElementById('locationAccuracy');
+            
+            // Show loading state
+            locationLoading.style.display = 'flex';
+            locationError.style.display = 'none';
+            locationStatus.innerHTML = '<i class="fas fa-satellite-dish fa-spin"></i><br>Acquiring GPS signal...<br><small>This may take a few seconds</small>';
+            locationInput.placeholder = 'Acquiring your location...';
+            
+            if (!navigator.geolocation) {
+                showLocationError('Geolocation is not supported by your browser. Please use a modern browser with location support.');
+                return;
+            }
+            
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 30000, // 30 seconds
+                maximumAge: 0 // Always get fresh location
+            };
+            
+            // Stop any existing watcher
+            if (locationWatchId) {
+                navigator.geolocation.clearWatch(locationWatchId);
+            }
+            
+            // Start watching position for continuous updates
+            locationWatchId = navigator.geolocation.watchPosition(
+                function(position) {
+                    userLocation = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        accuracy: position.coords.accuracy,
+                        altitude: position.coords.altitude,
+                        heading: position.coords.heading,
+                        speed: position.coords.speed
+                    };
+                    
+                    updateLocationOnMap(userLocation);
+                    updateLocationDisplay(userLocation);
+                    locationRetryCount = 0; // Reset retry count on success
+                    
+                    // If we have good accuracy, stop watching to save battery
+                    if (userLocation.accuracy < 15) {
+                        navigator.geolocation.clearWatch(locationWatchId);
+                        locationWatchId = null;
+                    }
+                },
+                function(error) {
+                    handleLocationError(error);
+                },
+                options
+            );
+            
+            // Set timeout to stop watching if no good location is found
+            setTimeout(() => {
+                if (locationWatchId && !userLocation) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                    locationWatchId = null;
+                    if (!userLocation) {
+                        showLocationError('Unable to acquire GPS signal. Please ensure you have good signal and try again.');
+                    }
+                }
+            }, 30000);
+        }
+        
+        function updateLocationOnMap(location) {
+            // Update map view
+            locationMap.setView([location.latitude, location.longitude], 16);
+            
+            // Remove existing marker and circle
+            if (userMarker) {
+                locationMap.removeLayer(userMarker);
+            }
+            if (accuracyCircle) {
+                locationMap.removeLayer(accuracyCircle);
+            }
+            
+            // Add accuracy circle
+            accuracyCircle = L.circle([location.latitude, location.longitude], {
+                color: '#2563eb',
+                fillColor: '#2563eb',
+                fillOpacity: 0.15,
+                radius: location.accuracy
+            }).addTo(locationMap);
+            
+            // Add user marker
+            userMarker = L.marker([location.latitude, location.longitude], {
+                icon: L.divIcon({
+                    className: 'user-location-marker',
+                    html: '<div style="background: #2563eb; width: 12px; height: 12px; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                })
+            }).addTo(locationMap)
+              .bindPopup('Your current location<br>Accuracy: ' + Math.round(location.accuracy) + ' meters')
+              .openPopup();
+        }
+        
+        function updateLocationDisplay(location) {
+            const latitudeInput = document.getElementById('latitude');
+            const longitudeInput = document.getElementById('longitude');
+            const locationAccuracy = document.getElementById('locationAccuracy');
+            const locationCoordinates = document.getElementById('locationCoordinates');
+            
+            // Hide loading and show success
+            locationLoading.style.display = 'none';
+            locationError.style.display = 'none';
+            
+            // Update location status based on accuracy
+            let accuracyLevel, accuracyClass, accuracyIcon;
+            if (location.accuracy < 10) {
+                accuracyLevel = 'High Precision';
+                accuracyClass = 'accuracy-high';
+                accuracyIcon = 'bullseye';
+                locationStatus.innerHTML = '<i class="fas fa-bullseye"></i><br>High Precision Location Acquired';
+            } else if (location.accuracy < 25) {
+                accuracyLevel = 'Good';
+                accuracyClass = 'accuracy-medium';
+                accuracyIcon = 'map-marker-alt';
+                locationStatus.innerHTML = '<i class="fas fa-map-marker-alt"></i><br>Good Location Acquired';
+            } else if (location.accuracy < 50) {
+                accuracyLevel = 'Moderate';
+                accuracyClass = 'accuracy-medium';
+                accuracyIcon = 'map-marker-alt';
+                locationStatus.innerHTML = '<i class="fas fa-map-marker-alt"></i><br>Location Acquired';
+            } else {
+                accuracyLevel = 'Low';
+                accuracyClass = 'accuracy-low';
+                accuracyIcon = 'exclamation-triangle';
+                locationStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><br>Low Accuracy - Move to open area';
+            }
+            
+            locationAccuracy.innerHTML = `<i class="fas fa-${accuracyIcon} ${accuracyClass}"></i> ${accuracyLevel} accuracy: within ${Math.round(location.accuracy)} meters`;
+            
+            // Get detailed address using reverse geocoding
+            getDetailedLocation(location.latitude, location.longitude)
+                .then(locationData => {
+                    // Format the location string with barangay and full address
+                    const formattedLocation = formatLocationString(locationData);
+                    
+                    // Update the location input field
+                    locationInput.value = formattedLocation;
+                    
+                    // Show location details
+                    locationDetails.style.display = 'block';
+                    barangayDisplay.textContent = locationData.barangay || 'Not detected';
+                    municipalityDisplay.textContent = locationData.municipality || 'Not detected';
+                    fullAddressDisplay.textContent = locationData.fullAddress || 'Not available';
+                    
+                    // Show coordinates
+                    locationCoordinates.style.display = 'block';
+                    locationCoordinates.textContent = `Lat: ${location.latitude.toFixed(6)} | Lng: ${location.longitude.toFixed(6)}`;
+                })
+                .catch(() => {
+                    // Fallback if geocoding fails
+                    const fallbackLocation = `GPS Coordinates: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`;
+                    locationInput.value = fallbackLocation;
+                    
+                    // Show basic location details
+                    locationDetails.style.display = 'block';
+                    barangayDisplay.textContent = 'Not detected (GPS only)';
+                    municipalityDisplay.textContent = 'Not detected (GPS only)';
+                    fullAddressDisplay.textContent = fallbackLocation;
+                    
+                    // Show coordinates
+                    locationCoordinates.style.display = 'block';
+                    locationCoordinates.textContent = `Lat: ${location.latitude.toFixed(6)} | Lng: ${location.longitude.toFixed(6)}`;
+                });
+            
+            latitudeInput.value = location.latitude;
+            longitudeInput.value = location.longitude;
+            
+            // Enable submit button
+            submitBtn.disabled = false;
+        }
+        
+        function formatLocationString(locationData) {
+            // Create a comprehensive location string that includes barangay
+            let locationParts = [];
+            
+            if (locationData.barangay) {
+                locationParts.push(`Brgy. ${locationData.barangay}`);
+            }
+            if (locationData.municipality) {
+                locationParts.push(locationData.municipality);
+            }
+            if (locationData.road) {
+                locationParts.push(`Near ${locationData.road}`);
+            }
+            
+            // If we have specific location details, use them
+            if (locationParts.length > 0) {
+                return locationParts.join(', ');
+            }
+            
+            // Fallback to full address
+            return locationData.fullAddress || 'Location acquired';
+        }
+        
+        async function getDetailedLocation(latitude, longitude) {
+            // Try multiple geocoding services for better accuracy
+            const services = [
+                // OpenStreetMap Nominatim (most reliable for Philippines)
+                `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+                // BigDataCloud (backup)
+                `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+            ];
+            
+            for (const serviceUrl of services) {
+                try {
+                    const response = await fetch(serviceUrl);
+                    if (!response.ok) continue;
+                    
+                    const data = await response.json();
+                    
+                    if (serviceUrl.includes('nominatim')) {
+                        // OpenStreetMap response - best for Philippine addresses
+                        const address = data.address;
+                        
+                        // Extract barangay (common Philippine address components)
+                        let barangay = '';
+                        if (address.village) barangay = address.village;
+                        else if (address.suburb) barangay = address.suburb;
+                        else if (address.neighbourhood) barangay = address.neighbourhood;
+                        else if (address.quarter) barangay = address.quarter;
+                        
+                        // Extract municipality/city
+                        let municipality = address.city || address.town || address.municipality || '';
+                        
+                        // Build full address
+                        const fullAddress = [
+                            address.road,
+                            barangay,
+                            municipality,
+                            address.state,
+                            'Philippines'
+                        ].filter(Boolean).join(', ');
+                        
+                        return {
+                            fullAddress: fullAddress,
+                            barangay: barangay,
+                            municipality: municipality,
+                            road: address.road || '',
+                            state: address.state || '',
+                            country: address.country || 'Philippines'
+                        };
+                    } else {
+                        // BigDataCloud response
+                        const locality = data.locality;
+                        const city = data.city;
+                        const principalSubdivision = data.principalSubdivision;
+                        const countryName = data.countryName;
+                        
+                        return {
+                            fullAddress: data.localityInfo?.administrative?.map(a => a.name).filter(Boolean).join(', ') || data.locality,
+                            barangay: locality,
+                            municipality: city,
+                            road: data.localityInfo?.administrative?.[2]?.name || '',
+                            state: principalSubdivision,
+                            country: countryName
+                        };
+                    }
+                } catch (error) {
+                    console.log(`Geocoding service failed: ${serviceUrl}`, error);
+                    continue;
+                }
+            }
+            
+            throw new Error('All geocoding services failed');
+        }
+        
+        function handleLocationError(error) {
+            locationRetryCount++;
+            
+            let errorMessage = '';
+            let detailedMessage = '';
+            
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMessage = 'Location access denied.';
+                    detailedMessage = 'Please enable location permissions in your browser or device settings.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMessage = 'Location unavailable.';
+                    if (locationRetryCount < MAX_RETRY_COUNT) {
+                        detailedMessage = `Retrying... (${locationRetryCount}/${MAX_RETRY_COUNT})`;
+                        setTimeout(startLocationTracking, 2000);
+                        return;
+                    } else {
+                        detailedMessage = 'Please check your device location settings and ensure GPS is enabled.';
+                    }
+                    break;
+                case error.TIMEOUT:
+                    errorMessage = 'Location request timed out.';
+                    if (locationRetryCount < MAX_RETRY_COUNT) {
+                        detailedMessage = `Retrying... (${locationRetryCount}/${MAX_RETRY_COUNT})`;
+                        setTimeout(startLocationTracking, 2000);
+                        return;
+                    } else {
+                        detailedMessage = 'Please ensure you have good GPS signal and try again in an open area.';
+                    }
+                    break;
+                default:
+                    errorMessage = 'Unable to get location.';
+                    detailedMessage = 'Please refresh the page and try again.';
+                    break;
+            }
+            
+            showLocationError(errorMessage + ' ' + detailedMessage);
+        }
+        
+        function showLocationError(message) {
+            locationLoading.style.display = 'none';
+            locationError.style.display = 'block';
+            locationStatus.innerHTML = '<i class="fas fa-exclamation-triangle"></i><br>Location Error';
+            document.getElementById('locationErrorMessage').textContent = message;
+            
+            // Keep submit button disabled
+            submitBtn.disabled = true;
+        }
+        
+        function previewImage(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const previewImg = document.getElementById('previewImg');
+                const photoPreview = document.getElementById('photoPreview');
+                
+                previewImg.src = e.target.result;
+                photoPreview.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function removeImage() {
+            const emergencyImageInput = document.getElementById('emergencyImage');
+            const photoPreview = document.getElementById('photoPreview');
+            
+            emergencyImageInput.value = '';
+            photoPreview.style.display = 'none';
+        }
+        
+        // Form validation
+        document.getElementById('emergencyReportForm').addEventListener('submit', function(e) {
+            if (!userLocation) {
+                e.preventDefault();
+                alert('Please wait for location acquisition before submitting the emergency report.');
+                return;
+            }
+            
+            if (!selectedEmergencyType) {
+                e.preventDefault();
+                alert('Please select an emergency type.');
+                return;
+            }
+            
+            if (!acceptTermsCheckbox.checked) {
+                e.preventDefault();
+                alert('You must accept the Terms and Conditions to submit an emergency report.');
+                acceptTermsCheckbox.focus();
+                return;
+            }
+            
+            // Show loading state
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting Emergency Report...';
+            submitBtn.disabled = true;
+        });
+    });
+    
+    // Global function for removing image
+    function removeImage() {
+        const emergencyImageInput = document.getElementById('emergencyImage');
+        const photoPreview = document.getElementById('photoPreview');
+        
+        emergencyImageInput.value = '';
+        photoPreview.style.display = 'none';
+    }
+</script>
+{% endblock %}

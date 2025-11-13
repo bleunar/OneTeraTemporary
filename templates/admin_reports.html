@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emergency Reports - 1TERA Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body class="admin-body">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="admin-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image">
+                <div class="logo-text">
+    
+                    <small>ONE Tigbauan Emergency Response System</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-header-right">
+            <!-- Notification Bell -->
+            <button class="notification-bell" id="notificationBell" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            
+            <!-- Send Alert Button -->
+            {% if session.admin_role in ['super_admin', 'radio_operator'] %}
+            <button class="btn-send-alert" onclick="openSendAlertModal()">
+                <i class="fas fa-bullhorn"></i>
+                <span class="btn-text">Send Alert</span>
+                <span class="action-text">Alert</span>
+            </button>
+            {% endif %}
+            
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <div class="user-name">{{ session.admin_name }}</div>
+                    <div class="user-role">{{ session.admin_role|replace('_', ' ')|title }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="btn-text">Logout</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Admin Sidebar -->
+<nav class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-menu">
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="menu-item">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+        </a>
+        
+        <a href="{{ url_for('admin.admin_reports') }}" class="menu-item active">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>Emergency Reports</span>
+            {% if stats.pending_reports > 0 %}
+            <span class="menu-badge">{{ stats.pending_reports }}</span>
+            {% endif %}
+        </a>
+
+        <!-- FIXED ROUTE -->
+        <a href="{{ url_for('admin.admin_users_feedback') }}" class="menu-item">
+            <i class="fas fa-comments"></i>
+            <span>User Feedbacks</span>
+        </a>
+
+        {% if session.admin_role == 'radio_operator' %}
+        <a href="{{ url_for('admin.radio_operator_dashboard') }}" class="menu-item">
+            <i class="fas fa-broadcast-tower"></i>
+            <span>Radio Operator</span>
+        </a>
+        {% endif %}
+
+        {% if session.admin_role == 'super_admin' %}
+        <a href="{{ url_for('admin.admin_management') }}" class="menu-item">
+            <i class="fas fa-users-cog"></i>
+            <span>Admin Management</span>
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('index') }}" class="menu-item public-portal">
+            <i class="fas fa-external-link-alt"></i>
+            <span>Public Portal</span>
+        </a>
+    </div>
+</nav>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <div class="admin-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="admin-flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Header -->
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>Emergency Reports Management</h1>
+                    <p>View and manage all emergency reports from citizens</p>
+                    <div class="header-stats">
+                        <div class="stat-badge">
+                            <i class="fas fa-clock"></i>
+                            <span>{{ stats.pending_reports or 0 }} Pending</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-spinner"></i>
+                            <span>{{ reports|selectattr('status', 'equalto', 'in_progress')|list|length }} In Progress</span>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Reports Summary Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ reports|length }}</div>
+                        <div class="stat-label">Total Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon pending">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ reports|selectattr('status', 'equalto', 'pending')|list|length }}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon progress">
+                        <i class="fas fa-spinner"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ reports|selectattr('status', 'equalto', 'in_progress')|list|length }}</div>
+                        <div class="stat-label">In Progress</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon resolved">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ reports|selectattr('status', 'equalto', 'resolved')|list|length }}</div>
+                        <div class="stat-label">Resolved</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Filter -->
+            <div class="reports-filter">
+                <div class="filter-group">
+                    <label for="statusFilter">Status</label>
+                    <select id="statusFilter" class="filter-select" onchange="filterReports()">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="typeFilter">Emergency Type</label>
+                    <select id="typeFilter" class="filter-select" onchange="filterReports()">
+                        <option value="all">All Types</option>
+                        <option value="fire">Fire</option>
+                        <option value="medical">Medical</option>
+                        <option value="natural">Natural Disaster</option>
+                        <option value="accident">Accident</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="dateFilter">Date Range</label>
+                    <select id="dateFilter" class="filter-select" onchange="filterReports()">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="searchInput">Search</label>
+                    <input type="text" id="searchInput" class="form-input" placeholder="Search reports..." onkeyup="searchReports()">
+                </div>
+            </div>
+
+            <!-- Reports Table -->
+            <div class="reports-table-container">
+                {% if reports %}
+                <div class="table-responsive">
+                    <table class="reports-table">
+                        <thead>
+                            <tr>
+                                <th>Report ID</th>
+                                <th>User</th>
+                                <th>Emergency Type</th>
+                                <th>Location</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Estimated Arrival</th>
+                                <th>Date Reported</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                            <tr class="report-row" 
+                                data-report-id="{{ report.id }}"
+                                data-status="{{ report.status }}" 
+                                data-type="{{ report.emergency_type }}"
+                                data-date="{{ report.created_at.strftime('%Y-%m-%d') }}"
+                                data-search="{{ report.fname }} {{ report.lname }} {{ report.phone_num }} {{ report.location }} {{ report.description }}">
+                                <td>
+                                    <span class="report-id">#{{ report.id }}</span>
+                                </td>
+                                <td>
+                                    <div class="user-info">
+                                        <strong>{{ report.fname }} {{ report.lname }}</strong>
+                                        <br>
+                                        <small class="user-phone">
+                                            <i class="fas fa-phone"></i> {{ report.phone_num or 'N/A' }}
+                                        </small>
+                                        <br>
+                                        <small class="user-email">
+                                            <i class="fas fa-envelope"></i> {{ report.email or 'No email' }}
+                                        </small>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="type-badge type-{{ report.emergency_type }}">
+                                        <i class="fas fa-{% if report.emergency_type == 'fire' %}fire{% elif report.emergency_type == 'medical' %}truck-medical{% elif report.emergency_type == 'natural' %}house-tsunami{% elif report.emergency_type == 'accident' %}car-burst{% else %}circle-exclamation{% endif %}"></i>
+                                        {{ report.emergency_type|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="location-info">
+                                        <strong>{{ report.location or 'Unknown Location' }}</strong>
+                                        {% if report.latitude and report.longitude %}
+                                        <br>
+                                        <small class="gps-info">
+                                            <i class="fas fa-map-marker-alt"></i> GPS Coordinates Available
+                                        </small>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="description-text">
+                                        {{ report.description[:100] }}{% if report.description and report.description|length > 100 %}...{% endif %}
+                                        {% if not report.description %}
+                                        <em class="no-description">No description provided</em>
+                                        {% endif %}
+                                    </div>
+                                    {% if report.e_img %}
+                                    <div class="has-image">
+                                        <i class="fas fa-image"></i> Image Attached
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="status-badge status-{{ report.status }}">
+                                        <i class="fas fa-{% if report.status == 'pending' %}clock{% elif report.status == 'in_progress' %}spinner{% else %}check-circle{% endif %}"></i>
+                                        {{ report.status|replace('_', ' ')|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if report.estimated_arrival %}
+                                        <div class="eta-info">
+                                            <i class="fas fa-clock"></i>
+                                            <strong>{{ report.estimated_arrival }}</strong>
+                                            {% if report.response_type %}
+                                            <br>
+                                            <small class="response-type">{{ report.response_type|title }}</small>
+                                            {% endif %}
+                                        </div>
+                                    {% elif report.status == 'in_progress' %}
+                                        <span class="eta-pending">
+                                            <i class="fas fa-hourglass-half"></i> Calculating...
+                                        </span>
+                                    {% else %}
+                                        <span class="eta-na">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <div class="date-info">
+                                        <strong>{{ report.created_at.strftime('%Y-%m-%d') }}</strong>
+                                        <br>
+                                        <small>{{ report.created_at.strftime('%H:%M:%S') }}</small>
+                                        {% if report.updated_at and report.updated_at != report.created_at %}
+                                        <br>
+                                        <small class="updated-time">Updated: {{ report.updated_at.strftime('%H:%M') }}</small>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="report-actions">
+                                        <button class="btn-action btn-view" onclick="viewReport({{ report.id }})" title="View Details" data-tooltip="View full report details">
+                                            <i class="fas fa-eye"></i>
+                                        </button>
+                                        
+                                        <button class="btn-action btn-edit" onclick="editStatus({{ report.id }})" title="Update Status" data-tooltip="Update report status">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        
+                                        {% if session.admin_role in ['super_admin', 'radio_operator'] %}
+                                        <button class="btn-action btn-dispatch" onclick="dispatchResponse({{ report.id }})" title="Dispatch Response" data-tooltip="Dispatch emergency response">
+                                            <i class="fas fa-paper-plane"></i>
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <button class="btn-action btn-call" onclick="callUser('{{ report.phone_num }}')" title="Call Reporter" data-tooltip="Call {{ report.phone_num }}">
+                                            <i class="fas fa-phone"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Controls -->
+                <div class="pagination">
+                    {% if pagination.has_prev %}
+                    <a href="{{ url_for('admin.admin_reports', page=pagination.page-1) }}" class="btn-pagination">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </a>
+                    {% else %}
+                    <span class="btn-pagination disabled">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </span>
+                    {% endif %}
+
+                    <div class="page-info">
+                        Page {{ pagination.page }} of {{ pagination.total_pages }}
+                        <small>({{ pagination.total }} total reports)</small>
+                    </div>
+
+                    {% if pagination.has_next %}
+                    <a href="{{ url_for('admin.admin_reports', page=pagination.page+1) }}" class="btn-pagination">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
+                    {% else %}
+                    <span class="btn-pagination disabled">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </span>
+                    {% endif %}
+                </div>
+
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Emergency Reports</h3>
+                    <p>There are no emergency reports in the system yet.</p>
+                    <p>When citizens submit emergency reports, they will appear here.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Export and Actions -->
+            <div class="reports-actions">
+                <button class="btn btn-secondary" onclick="exportReports()">
+                    <i class="fas fa-download"></i> Export Reports
+                </button>
+                <button class="btn btn-primary" onclick="refreshReports()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- View Report Modal -->
+    <div id="viewReportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-alt"></i> Emergency Report Details</h3>
+                <button class="modal-close" onclick="closeModal('viewReportModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="reportDetails">
+                <!-- Details will be loaded via AJAX -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Update Status Modal -->
+    <div id="updateStatusModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-edit"></i> Update Report Status</h3>
+                <button class="modal-close" onclick="closeModal('updateStatusModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="statusForm" onsubmit="updateStatus(event)">
+                    <input type="hidden" id="reportId" name="report_id">
+                    
+                    <div class="form-group">
+                        <label for="statusSelect" class="form-label">New Status</label>
+                        <select id="statusSelect" name="status" class="form-input" required>
+                            <option value="pending">Pending</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="resolved">Resolved</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="adminNotes" class="form-label">Admin Notes (Optional)</label>
+                        <textarea id="adminNotes" name="admin_notes" class="form-textarea" rows="3" placeholder="Add any notes or updates for the user..."></textarea>
+                        <div class="form-hint">These notes will be visible to the user in their notifications.</div>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('updateStatusModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Update Status
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatch Response Modal -->
+    <div id="dispatchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-paper-plane"></i> Dispatch Emergency Response</h3>
+                <button class="modal-close" onclick="closeModal('dispatchModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="dispatchForm">
+                    <input type="hidden" id="dispatchReportId">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Response Type</label>
+                        <div class="response-types">
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="fire" checked>
+                                <i class="fas fa-fire-extinguisher"></i>
+                                <span>Fire Truck</span>
+                            </label>
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="medical">
+                                <i class="fas fa-ambulance"></i>
+                                <span>Ambulance</span>
+                            </label>
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="police">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Police</span>
+                            </label>
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="rescue">
+                                <i class="fas fa-life-ring"></i>
+                                <span>Rescue</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dispatchMessage" class="form-label">Dispatch Notes (Optional)</label>
+                        <textarea id="dispatchMessage" class="form-textarea" rows="3" placeholder="Enter dispatch details or special instructions..."></textarea>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('dispatchModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="confirmDispatch()">
+                            <i class="fas fa-paper-plane"></i> Dispatch Response
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Send Alert Modal -->
+    <div id="sendAlertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bullhorn"></i> Send Emergency Alert</h3>
+                <button class="modal-close" onclick="closeModal('sendAlertModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="alertForm">
+                    <div class="form-group">
+                        <label for="alertType" class="form-label">Alert Type</label>
+                        <select id="alertType" name="alert_type" class="form-input" required>
+                            <option value="info">Information</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertMessage" class="form-label">Alert Message</label>
+                        <textarea id="alertMessage" name="alert_message" class="form-textarea" rows="4" placeholder="Enter alert message..." required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('sendAlertModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notificationsList">
+                <!-- Notifications will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mobile menu functionality
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('adminSidebar');
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        function handleResize() {
+            const sidebar = document.getElementById('adminSidebar');
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('mobile-open');
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        // Enhanced Notification Functions
+        function handleNotificationClick(reportId) {
+            // Mark as read
+            markAsRead(reportId);
+            
+            // Update URL and highlight report
+            window.location.hash = `report-${reportId}`;
+            highlightReport(reportId);
+        }
+
+        // Handle URL hash for direct report access
+        function handleReportHighlight() {
+            const hash = window.location.hash;
+            if (hash && hash.startsWith('#report-')) {
+                const reportId = hash.replace('#report-', '');
+                highlightReport(reportId);
+            }
+        }
+
+        // Highlight specific report
+        function highlightReport(reportId) {
+            // Remove any existing highlights
+            document.querySelectorAll('.report-row').forEach(row => {
+                row.style.backgroundColor = '';
+                row.classList.remove('highlighted-report');
+            });
+            
+            // Find and highlight the target report
+            const targetRow = document.querySelector(`[data-report-id="${reportId}"]`);
+            if (targetRow) {
+                targetRow.style.backgroundColor = '#f0f9ff';
+                targetRow.classList.add('highlighted-report');
+                
+                // Scroll to the report
+                targetRow.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+                
+                // Add pulsing animation
+                targetRow.style.animation = 'pulse-highlight 2s ease-in-out';
+                
+                // Remove animation after it completes
+                setTimeout(() => {
+                    targetRow.style.animation = '';
+                }, 2000);
+            } else {
+                // If report not in current view, try to load it
+                fetchReportAndNavigate(reportId);
+            }
+        }
+
+        // Fetch specific report data if not in current view
+        function fetchReportAndNavigate(reportId) {
+            fetch(`{{ url_for("admin.get_report_by_id", report_id=0) }}`.replace('0', reportId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showNotification(`Report #${reportId} found: ${data.report.emergency_type} at ${data.report.location}`, 'info');
+                    } else {
+                        showNotification('Report not found in current view', 'warning');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching report:', error);
+                    showNotification('Error loading report details', 'error');
+                });
+        }
+
+        // Existing reports functionality remains the same
+        let currentReportId = null;
+
+        // Filter functions
+        function filterReports() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+            const rows = document.querySelectorAll('.report-row');
+            
+            const today = new Date();
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+            
+            rows.forEach(row => {
+                const status = row.getAttribute('data-status');
+                const type = row.getAttribute('data-type');
+                const dateStr = row.getAttribute('data-date');
+                const reportDate = new Date(dateStr);
+                
+                let showRow = true;
+                
+                // Status filter
+                if (statusFilter !== 'all' && status !== statusFilter) {
+                    showRow = false;
+                }
+                
+                // Type filter
+                if (typeFilter !== 'all' && type !== typeFilter) {
+                    showRow = false;
+                }
+                
+                // Date filter
+                if (dateFilter !== 'all') {
+                    if (dateFilter === 'today' && reportDate.toDateString() !== today.toDateString()) {
+                        showRow = false;
+                    } else if (dateFilter === 'week' && reportDate < weekAgo) {
+                        showRow = false;
+                    } else if (dateFilter === 'month' && reportDate < monthAgo) {
+                        showRow = false;
+                    }
+                }
+                
+                row.style.display = showRow ? '' : 'none';
+            });
+        }
+        
+        function searchReports() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.querySelectorAll('.report-row');
+            
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search').toLowerCase();
+                const isVisible = searchData.includes(searchTerm);
+                row.style.display = isVisible ? '' : 'none';
+            });
+        }
+        
+        function resetFilters() {
+            document.getElementById('statusFilter').value = 'all';
+            document.getElementById('typeFilter').value = 'all';
+            document.getElementById('dateFilter').value = 'all';
+            document.getElementById('searchInput').value = '';
+            filterReports();
+        }
+        
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        function openSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'flex';
+        }
+        
+        // View report details with real data
+        function viewReport(reportId) {
+            fetch(`/admin/get_report_details/${reportId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const reportDetails = document.getElementById('reportDetails');
+                    if (data.success) {
+                        const report = data.report;
+                        reportDetails.innerHTML = `
+                            <div class="report-detail-grid">
+                                <div class="detail-item">
+                                    <label>Report ID:</label>
+                                    <span>#${report.id}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Status:</label>
+                                    <span class="status-badge status-${report.status}">
+                                        ${report.status.replace('_', ' ').toUpperCase()}
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Emergency Type:</label>
+                                    <span class="type-badge type-${report.emergency_type}">
+                                        ${report.emergency_type.toUpperCase()}
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Location:</label>
+                                    <span>${report.location || 'Unknown location'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Description:</label>
+                                    <p>${report.description || 'No description provided'}</p>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Reporter:</label>
+                                    <span>${report.fname} ${report.lname} (${report.phone_num})</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Email:</label>
+                                    <span>${report.email || 'No email'}</span>
+                                </div>
+                                ${report.estimated_arrival ? `
+                                <div class="detail-item">
+                                    <label>Estimated Arrival:</label>
+                                    <span style="color: var(--success); font-weight: 600;">
+                                        <i class="fas fa-clock"></i> ${report.estimated_arrival}
+                                    </span>
+                                </div>
+                                ` : ''}
+                                ${report.response_type ? `
+                                <div class="detail-item">
+                                    <label>Response Type:</label>
+                                    <span>${report.response_type.toUpperCase()}</span>
+                                </div>
+                                ` : ''}
+                                <div class="detail-item">
+                                    <label>Date Reported:</label>
+                                    <span>${new Date(report.created_at).toLocaleString()}</span>
+                                </div>
+                                ${report.e_img ? `
+                                <div class="detail-item">
+                                    <label>Attached Image:</label>
+                                    <div class="report-image">
+                                        <img src="/static/uploads/${report.e_img}" alt="Emergency Image" style="max-width: 100%; border-radius: 8px;">
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    } else {
+                        reportDetails.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h3>Error Loading Report</h3>
+                                <p>${data.message}</p>
+                            </div>
+                        `;
+                    }
+                    openModal('viewReportModal');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const reportDetails = document.getElementById('reportDetails');
+                    reportDetails.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Error Loading Report</h3>
+                            <p>Failed to load report details. Please try again.</p>
+                        </div>
+                    `;
+                    openModal('viewReportModal');
+                });
+        }
+        
+        // Edit status
+        function editStatus(reportId) {
+            document.getElementById('reportId').value = reportId;
+            openModal('updateStatusModal');
+        }
+        
+        // Update status
+        function updateStatus(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const reportId = formData.get('report_id');
+            const status = formData.get('status');
+            const adminNotes = formData.get('admin_notes');
+            
+            // Send AJAX request to update status
+            fetch('{{ url_for("admin.update_report_status") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Status updated successfully!', 'success');
+                    closeModal('updateStatusModal');
+                    // Refresh the page to show updated status
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification('Error updating status: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating status', 'error');
+            });
+        }
+        
+        // Dispatch response
+        function dispatchResponse(reportId) {
+            currentReportId = reportId;
+            document.getElementById('dispatchReportId').value = reportId;
+            openModal('dispatchModal');
+        }
+        
+        function confirmDispatch() {
+            const responseType = document.querySelector('input[name="responseType"]:checked').value;
+            const notes = document.getElementById('dispatchMessage').value;
+            
+            if (!currentReportId) {
+                showNotification('No report selected for dispatch.', 'error');
+                return;
+            }
+            
+            // Show loading state
+            const dispatchBtn = document.querySelector('#dispatchModal .btn-primary');
+            const originalText = dispatchBtn.innerHTML;
+            dispatchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Dispatching...';
+            dispatchBtn.disabled = true;
+            
+            // Send dispatch request
+            fetch('{{ url_for("admin.dispatch_response") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `report_id=${currentReportId}&response_type=${responseType}&notes=${encodeURIComponent(notes)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('dispatchModal');
+                    // Refresh page to show updated status and ETA
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification('Error: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error dispatching response', 'error');
+            })
+            .finally(() => {
+                // Restore button state
+                dispatchBtn.innerHTML = originalText;
+                dispatchBtn.disabled = false;
+            });
+        }
+        
+        // Call user
+        function callUser(phoneNumber) {
+            if (phoneNumber && phoneNumber !== 'N/A' && phoneNumber !== 'None') {
+                if (confirm(`Call ${phoneNumber}?`)) {
+                    window.location.href = `tel:${phoneNumber}`;
+                }
+            } else {
+                showNotification('No phone number available for this reporter.', 'warning');
+            }
+        }
+        
+        // Export functionality
+        function exportReports() {
+            showNotification('Export feature coming soon!', 'info');
+        }
+        
+        function refreshReports() {
+            location.reload();
+        }
+        
+        // Notification functions
+        function openNotifications() {
+            document.getElementById('notificationsModal').style.display = 'flex';
+            loadNotifications();
+        }
+        
+        function closeNotifications() {
+            document.getElementById('notificationsModal').style.display = 'none';
+        }
+        
+        function loadNotifications() {
+            fetch('{{ url_for("admin.get_notifications") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('notificationsList');
+                    const badge = document.getElementById('notificationBadge');
+                    
+                    if (data.success) {
+                        if (data.notifications.length > 0) {
+                            let html = '';
+                            data.notifications.forEach(notification => {
+                                const isEmergencyReport = notification.is_emergency_report || true;
+                                const reportId = notification.report_id || notification.id;
+                                
+                                html += `
+                                    <div class="notification-item unread clickable-notification" 
+                                         onclick="handleNotificationClick(${reportId})"
+                                         data-report-id="${reportId}">
+                                        <div class="notification-title">
+                                            <i class="fas fa-${getNotificationIcon(notification.type)}"></i>
+                                            ${notification.title}
+                                            <i class="fas fa-external-link-alt link-icon"></i>
+                                        </div>
+                                        <div class="notification-message">${notification.message}</div>
+                                        <div class="notification-time">
+                                            ${new Date(notification.created_at).toLocaleString()}
+                                            <span class="report-badge">Report #${reportId}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            container.innerHTML = html;
+                            badge.textContent = data.notifications.length;
+                            badge.style.display = 'flex';
+                        } else {
+                            container.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-bell-slash"></i>
+                                    <h3>No Notifications</h3>
+                                    <p>You're all caught up!</p>
+                                </div>
+                            `;
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                });
+        }
+        
+        function markAsRead(notificationId) {
+            fetch(`{{ url_for("admin.mark_notification_read", notification_id=0) }}`.replace('0', notificationId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the notification from UI
+                        const notificationElement = document.querySelector(`[data-report-id="${notificationId}"]`);
+                        if (notificationElement) {
+                            notificationElement.classList.add('notification-removing');
+                            setTimeout(() => {
+                                notificationElement.remove();
+                                loadNotifications(); // Reload to update count
+                            }, 300);
+                        }
+                    }
+                });
+        }
+        
+        function getNotificationIcon(type) {
+            const icons = {
+                'info': 'info-circle',
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle',
+                'success': 'check-circle'
+            };
+            return icons[type] || 'bell';
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification-toast ${type === 'error' ? 'error' : 'success'}`;
+            notification.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    ${message}
+                </div>
+            `;
+            
+            // Add to body
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+        
+        // Alert form submission
+        document.getElementById('alertForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('{{ url_for("admin.send_alert") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('sendAlertModal');
+                    document.getElementById('alertForm').reset();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending alert:', error);
+                showNotification('Error sending alert', 'error');
+            });
+        });
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal, .notification-modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+        
+        // Apply filters on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            filterReports();
+            loadNotifications();
+            handleReportHighlight(); // Add this line
+            
+            // Refresh notifications every 30 seconds
+            setInterval(loadNotifications, 30000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Radio Operator - 1TERA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body class="admin-body">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="admin-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image">
+                <div class="logo-text">
+                    <span>RADIO OPERATOR</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-header-right">
+            <!-- Send Alert Button -->
+            <button class="btn-send-alert" onclick="openSendAlertModal()" title="Send Alert to All Users">
+                <i class="fas fa-bullhorn"></i>
+                <span class="btn-text">Send Alert</span>
+            </button>
+            
+            <!-- Notification Bell -->
+            <button class="notification-bell" id="notificationBell" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <span class="user-name">{{ session.admin_name }}</span>
+                    <small class="user-role">Radio Operator</small>
+                </div>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="btn-text">Logout</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Radio Operator Sidebar -->
+    <nav class="admin-sidebar" id="adminSidebar">
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin.radio_operator_dashboard') }}" class="menu-item active">
+                <i class="fas fa-broadcast-tower"></i>
+                <span>Radio Console</span>
+            </a>
+            
+            <a href="{{ url_for('index') }}" class="menu-item public-portal">
+                <i class="fas fa-external-link-alt"></i>
+                <span>Public Portal</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <div class="admin-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="admin-flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Header -->
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>Radio Operator Console</h1>
+                    <p>Emergency response coordination and real-time dispatch management</p>
+                </div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.total_reports or 0 }}</div>
+                        <div class="stat-label">Total Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon today">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ today_reports }}</div>
+                        <div class="stat-label">Today's Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon pending">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.pending_reports or 0 }}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon progress">
+                        <i class="fas fa-spinner"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.in_progress_reports or 0 }}</div>
+                        <div class="stat-label">In Progress</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Emergency Alerts Panel -->
+            <div class="alert-panel">
+                <div class="alert-header">
+                    <div class="alert-title">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Active Emergency Reports</h3>
+                    </div>
+                    <div class="alert-controls">
+                        <span class="alert-count">{{ active_reports|length }} Active</span>
+                        <button class="btn-refresh-sm" onclick="refreshDashboard()" title="Refresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="alert-content">
+                    {% if active_reports %}
+                        <div class="emergency-alerts">
+                            {% for report in active_reports %}
+                            <div class="emergency-alert alert-{% if report.status == 'pending' %}urgent{% else %}progress{% endif %}" data-report-id="{{ report.id }}">
+                                <div class="alert-icon">
+                                    <i class="fas fa-{% if report.emergency_type == 'fire' %}fire{% elif report.emergency_type == 'medical' %}truck-medical{% elif report.emergency_type == 'natural' %}house-tsunami{% elif report.emergency_type == 'accident' %}car-burst{% else %}circle-exclamation{% endif %}"></i>
+                                </div>
+                                <div class="alert-details">
+                                    <div class="alert-title">
+                                        <span class="emergency-type">{{ report.emergency_type|title }} Emergency</span>
+                                        <span class="alert-time">{{ report.created_at.strftime('%H:%M') }}</span>
+                                    </div>
+                                    <div class="alert-location">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                        {{ report.location or 'Unknown location' }}
+                                    </div>
+                                    <div class="alert-description">
+                                        {{ report.description or 'No description provided' }}
+                                    </div>
+                                    <div class="alert-reporter">
+                                        <i class="fas fa-user"></i>
+                                        {{ report.fname }} {{ report.lname }} • {{ report.phone_num }}
+                                    </div>
+                                    {% if report.estimated_arrival %}
+                                    <div class="alert-eta">
+                                        <i class="fas fa-clock"></i>
+                                        ETA: {{ report.estimated_arrival }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div class="alert-actions">
+                                    <div class="report-status status-{{ report.status }}">
+                                        {{ report.status|replace('_', ' ')|title }}
+                                    </div>
+                                    <div class="action-buttons">
+                                        <button class="btn-action btn-dispatch" onclick="dispatchResponse({{ report.id }})" title="Dispatch Response">
+                                            <i class="fas fa-paper-plane"></i>
+                                            <span class="action-text">Dispatch</span>
+                                        </button>
+                                        <button class="btn-action btn-call" onclick="callUser('{{ report.phone_num }}')" title="Call Reporter">
+                                            <i class="fas fa-phone"></i>
+                                            <span class="action-text">Call</span>
+                                        </button>
+                                        <button class="btn-action btn-view" onclick="viewReportDetails({{ report.id }})" title="View Details">
+                                            <i class="fas fa-eye"></i>
+                                            <span class="action-text">View</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-state">
+                            <i class="fas fa-check-circle"></i>
+                            <h3>No Active Emergencies</h3>
+                            <p>All emergency reports have been addressed.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Emergency Hotlines -->
+            <div class="hotlines-panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-phone"></i> Emergency Hotlines</h3>
+                    <button class="btn-refresh-sm" onclick="refreshHotlines()" title="Refresh Hotlines">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                <div class="hotlines-list">
+                    {% for hotline in hotlines %}
+                    <div class="hotline-item">
+                        <div class="hotline-icon">
+                            <i class="fas fa-{{ hotline.category|get_hotline_icon }}"></i>
+                        </div>
+                        <div class="hotline-details">
+                            <div class="hotline-name">{{ hotline.name }}</div>
+                            <div class="hotline-number">{{ hotline.number }}</div>
+                        </div>
+                        <button class="hotline-call" onclick="callHotline('{{ hotline.number }}')" title="Call {{ hotline.name }}">
+                            <i class="fas fa-phone"></i>
+                            <span class="call-text">Call</span>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Send Alert Modal -->
+    <div id="sendAlertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bullhorn"></i> Send Alert to All Users</h3>
+                <button class="modal-close" onclick="closeSendAlertModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="sendAlertForm" onsubmit="sendAlert(event)">
+                    <div class="form-group">
+                        <label for="modal_alert_type" class="form-label">Alert Type</label>
+                        <select id="modal_alert_type" name="alert_type" class="form-input" required>
+                            <option value="info">Information</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Emergency</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="modal_alert_message" class="form-label">Alert Message</label>
+                        <textarea id="modal_alert_message" name="alert_message" class="form-textarea" rows="4" placeholder="Enter alert message for all users..." required></textarea>
+                        <div class="form-hint">This alert will be visible to all users for 24 hours</div>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeSendAlertModal()">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispatch Modal -->
+    <div id="dispatchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-paper-plane"></i> Dispatch Emergency Response</h3>
+                <button class="modal-close" onclick="closeModal('dispatchModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="dispatchForm">
+                    <input type="hidden" id="dispatchReportId">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Response Type</label>
+                        <div class="response-types">
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="fire" checked>
+                                <i class="fas fa-fire-extinguisher"></i>
+                                <span>Fire Truck</span>
+                            </label>
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="medical">
+                                <i class="fas fa-ambulance"></i>
+                                <span>Ambulance</span>
+                            </label>
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="police">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Police</span>
+                            </label>
+                            <label class="response-type">
+                                <input type="radio" name="responseType" value="rescue">
+                                <i class="fas fa-life-ring"></i>
+                                <span>Rescue</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dispatchMessage" class="form-label">Dispatch Notes (Optional)</label>
+                        <textarea id="dispatchMessage" class="form-textarea" rows="3" placeholder="Enter dispatch details or special instructions..."></textarea>
+                    </div>
+                    
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('dispatchModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="confirmDispatch()">
+                            <i class="fas fa-paper-plane"></i> Dispatch Response
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- View Report Modal -->
+    <div id="viewReportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-file-alt"></i> Emergency Report Details</h3>
+                <button class="modal-close" onclick="closeModal('viewReportModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="reportDetails">
+                <!-- Details will be loaded via AJAX -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notificationsList">
+                <!-- Notifications will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentReportId = null;
+
+        // Mobile menu functionality
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('adminSidebar');
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        // Load notifications on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadNotifications();
+            // Refresh notifications every 30 seconds
+            setInterval(loadNotifications, 30000);
+            // Auto-refresh dashboard every 1mins
+            setInterval(refreshDashboard, 60000);
+        });
+
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'flex';
+            // Close mobile menu when modal opens
+            document.getElementById('adminSidebar').classList.remove('mobile-open');
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Send Alert Modal Functions
+        function openSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'flex';
+            document.getElementById('sendAlertForm').reset();
+            updateAlertTypeStyle('info');
+        }
+
+        function closeSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'none';
+        }
+
+        function sendAlert(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const alertMessage = formData.get('alert_message');
+            
+            if (!alertMessage.trim()) {
+                alert('Please enter an alert message');
+                return;
+            }
+            
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            submitBtn.disabled = true;
+            
+            fetch('{{ url_for("admin.send_alert") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(formData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Alert sent successfully to all users!', 'success');
+                    closeSendAlertModal();
+                } else {
+                    showNotification('Error sending alert: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error sending alert', 'error');
+            })
+            .finally(() => {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+
+        // Update alert type style in modal
+        document.getElementById('modal_alert_type').addEventListener('change', function() {
+            updateAlertTypeStyle(this.value);
+        });
+
+        function updateAlertTypeStyle(alertType) {
+            const modalBody = document.querySelector('#sendAlertModal .modal-body');
+            modalBody.className = 'modal-body alert-' + alertType;
+        }
+
+        // Dispatch functions
+        function dispatchResponse(reportId) {
+            currentReportId = reportId;
+            document.getElementById('dispatchReportId').value = reportId;
+            openModal('dispatchModal');
+        }
+
+        function confirmDispatch() {
+            const responseType = document.querySelector('input[name="responseType"]:checked').value;
+            const notes = document.getElementById('dispatchMessage').value;
+            
+            if (!currentReportId) {
+                showNotification('No report selected for dispatch.', 'error');
+                return;
+            }
+            
+            const dispatchBtn = document.querySelector('#dispatchModal .btn-primary');
+            const originalText = dispatchBtn.innerHTML;
+            dispatchBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Dispatching...';
+            dispatchBtn.disabled = true;
+            
+            fetch('{{ url_for("admin.dispatch_response") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `report_id=${currentReportId}&response_type=${responseType}&notes=${encodeURIComponent(notes)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('dispatchModal');
+                    
+                    // Remove notification for this report after successful dispatch
+                    removeNotificationForReport(currentReportId);
+                    
+                    // Refresh page to show updated status and ETA
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showNotification('Error: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error dispatching response', 'error');
+            })
+            .finally(() => {
+                dispatchBtn.innerHTML = originalText;
+                dispatchBtn.disabled = false;
+            });
+        }
+
+        // View report details
+        function viewReportDetails(reportId) {
+            fetch(`/admin/get_radio_report_details/${reportId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const reportDetails = document.getElementById('reportDetails');
+                    if (data.success) {
+                        const report = data.report;
+                        reportDetails.innerHTML = `
+                            <div class="report-detail-grid">
+                                <div class="detail-item">
+                                    <label>Report ID:</label>
+                                    <span>#${report.id}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Status:</label>
+                                    <span class="status-badge status-${report.status}">
+                                        ${report.status.replace('_', ' ').toUpperCase()}
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Emergency Type:</label>
+                                    <span class="type-badge type-${report.emergency_type}">
+                                        ${report.emergency_type.toUpperCase()}
+                                    </span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Location:</label>
+                                    <span>${report.location || 'Unknown location'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Description:</label>
+                                    <p>${report.description || 'No description provided'}</p>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Reporter:</label>
+                                    <span>${report.fname} ${report.lname}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Phone:</label>
+                                    <span>${report.phone_num || 'No phone number'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Email:</label>
+                                    <span>${report.email || 'No email'}</span>
+                                </div>
+                                <div class="detail-item">
+                                    <label>Date Reported:</label>
+                                    <span>${new Date(report.created_at).toLocaleString()}</span>
+                                </div>
+                                ${report.e_img ? `
+                                <div class="detail-item">
+                                    <label>Attached Image:</label>
+                                    <div class="report-image">
+                                        <img src="/static/uploads/${report.e_img}" alt="Emergency Image" style="max-width: 100%; border-radius: 8px;">
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    } else {
+                        reportDetails.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <h3>Error Loading Report</h3>
+                                <p>${data.message}</p>
+                            </div>
+                        `;
+                    }
+                    openModal('viewReportModal');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    const reportDetails = document.getElementById('reportDetails');
+                    reportDetails.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Error Loading Report</h3>
+                            <p>Failed to load report details. Please try again.</p>
+                        </div>
+                    `;
+                    openModal('viewReportModal');
+                });
+        }
+
+        // Call functions
+        function callUser(phoneNumber) {
+            if (phoneNumber && phoneNumber !== 'N/A' && phoneNumber !== 'None') {
+                if (confirm(`Call ${phoneNumber}?`)) {
+                    window.location.href = `tel:${phoneNumber}`;
+                }
+            } else {
+                showNotification('No phone number available for this reporter.', 'warning');
+            }
+        }
+
+        function callHotline(number) {
+            const cleanNumber = number.replace(/[^\d+]/g, '');
+            if (confirm(`Call ${number}?`)) {
+                window.location.href = `tel:${cleanNumber}`;
+            }
+        }
+
+        // Enhanced Notification functions
+        function openNotifications() {
+            document.getElementById('notificationsModal').style.display = 'flex';
+            loadNotifications();
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationsModal').style.display = 'none';
+        }
+
+        function loadNotifications() {
+            fetch('{{ url_for("admin.get_notifications") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('notificationsList');
+                    const badge = document.getElementById('notificationBadge');
+                    
+                    if (data.success) {
+                        if (data.notifications.length > 0) {
+                            let html = '';
+                            data.notifications.forEach(notification => {
+                                const isEmergencyReport = notification.is_emergency_report || false;
+                                const clickableClass = isEmergencyReport ? 'clickable-notification' : '';
+                                const emergencyClass = isEmergencyReport ? `emergency-${notification.emergency_type}` : '';
+                                
+                                html += `
+                                    <div class="notification-item unread ${clickableClass} ${emergencyClass}" 
+                                         data-notification-id="${notification.id}"
+                                         data-report-id="${notification.report_id}"
+                                         onclick="handleNotificationClick(${JSON.stringify(notification).replace(/"/g, '&quot;')})">
+                                        <div class="notification-title">
+                                            <i class="fas fa-${getNotificationIcon(notification.type)}"></i>
+                                            ${notification.title}
+                                            ${isEmergencyReport ? '<i class="fas fa-paper-plane link-icon"></i>' : ''}
+                                        </div>
+                                        <div class="notification-message">${notification.message}</div>
+                                        <div class="notification-time">
+                                            ${new Date(notification.created_at).toLocaleString()}
+                                            ${isEmergencyReport ? '<span class="report-badge">Dispatch Now</span>' : ''}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            container.innerHTML = html;
+                            badge.textContent = data.notifications.length;
+                            badge.style.display = 'flex';
+                        } else {
+                            container.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-bell-slash"></i>
+                                    <h3>No Notifications</h3>
+                                    <p>You're all caught up!</p>
+                                </div>
+                            `;
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                });
+        }
+
+        // UPDATED: Handle notification click - now opens dispatch modal for emergency reports
+        function handleNotificationClick(notification) {
+            if (notification.is_emergency_report) {
+                // Remove notification immediately from UI
+                removeNotificationFromUI(notification.id);
+                
+                // Mark as read in backend
+                markAsRead(notification.id);
+                
+                // Open dispatch modal instead of report details
+                dispatchResponse(notification.report_id);
+            } else {
+                // For non-emergency reports, just mark as read and remove
+                removeNotificationFromUI(notification.id);
+                markAsRead(notification.id);
+            }
+        }
+
+        function removeNotificationFromUI(notificationId) {
+            const notificationElement = document.querySelector(`[data-notification-id="${notificationId}"]`);
+            if (notificationElement) {
+                // Add removal animation
+                notificationElement.classList.add('notification-removing');
+                
+                // Remove after animation completes
+                setTimeout(() => {
+                    notificationElement.remove();
+                    updateNotificationBadge();
+                }, 300);
+            }
+        }
+
+        // UPDATED: Remove notification for report when dispatch is completed
+        function removeNotificationForReport(reportId) {
+            // Remove all notifications related to this report
+            const notificationElements = document.querySelectorAll(`[data-report-id="${reportId}"]`);
+            notificationElements.forEach(element => {
+                element.classList.add('notification-removing');
+                setTimeout(() => {
+                    element.remove();
+                    updateNotificationBadge();
+                }, 300);
+            });
+            
+            // Also mark as read in backend
+            markNotificationAsReadForReport(reportId);
+        }
+
+        function updateNotificationBadge() {
+            const notificationElements = document.querySelectorAll('.notification-item:not(.notification-removing)');
+            const badge = document.getElementById('notificationBadge');
+            
+            if (notificationElements.length > 0) {
+                badge.textContent = notificationElements.length;
+                badge.style.display = 'flex';
+                // Add pulse animation when count changes
+                badge.classList.add('pulse');
+                setTimeout(() => badge.classList.remove('pulse'), 1000);
+            } else {
+                badge.style.display = 'none';
+                
+                // Update notifications list to show empty state if no notifications left
+                const container = document.getElementById('notificationsList');
+                const remainingNotifications = container.querySelectorAll('.notification-item:not(.notification-removing)');
+                if (remainingNotifications.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-bell-slash"></i>
+                            <h3>No Notifications</h3>
+                            <p>You're all caught up!</p>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function markAsRead(notificationId) {
+            fetch(`{{ url_for("admin.mark_notification_read", notification_id=0) }}`.replace('0', notificationId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Notification marked as read:', notificationId);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error marking notification as read:', error);
+                });
+        }
+
+        function markNotificationAsReadForReport(reportId) {
+            // Mark all notifications for this report as read
+            fetch(`{{ url_for("admin.mark_notification_read_for_report", report_id=0) }}`.replace('0', reportId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('All notifications marked as read for report:', reportId);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error marking notifications as read for report:', error);
+                });
+        }
+
+        // Utility functions
+        function refreshDashboard() {
+            location.reload();
+        }
+
+        function refreshHotlines() {
+            showNotification('Hotlines refreshed', 'info');
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${getNotificationIcon(type)}"></i>
+                ${message}
+            `;
+            
+            const container = document.querySelector('.admin-flash-messages') || createFlashContainer();
+            container.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        function createFlashContainer() {
+            const container = document.createElement('div');
+            container.className = 'admin-flash-messages';
+            document.querySelector('.admin-container').insertBefore(container, document.querySelector('.admin-container').firstChild);
+            return container;
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'info': 'info-circle',
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle',
+                'success': 'check-circle'
+            };
+            return icons[type] || 'bell';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal, .notification-modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Close mobile menu when clicking on a link
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', function() {
+                document.getElementById('adminSidebar').classList.remove('mobile-open');
+            });
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/security.js') }}"></script>
+</body>
+</html>

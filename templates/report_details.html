@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block title %}Report Details - 1TERA{% endblock %}
+
+{% block content %}
+<div class="page active" id="report-details-page">
+    <div class="page-header">
+        <div class="header-actions">
+            <a href="{{ url_for('view_status') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Reports
+            </a>
+        </div>
+        <h2 class="section-title">Emergency Report Details</h2>
+        <p class="page-subtitle">Complete information about your emergency report</p>
+    </div>
+    
+    <div class="card">
+        <!-- Report Header -->
+        <div class="report-header">
+            <div class="report-type-badge">
+                {% if report.emergency_type == 'fire' %}
+                <i class="fas fa-fire"></i>
+                {% elif report.emergency_type == 'medical' %}
+                <i class="fas fa-truck-medical"></i>
+                {% elif report.emergency_type == 'natural' %}
+                <i class="fas fa-house-tsunami"></i>
+                {% elif report.emergency_type == 'accident' %}
+                <i class="fas fa-car-burst"></i>
+                {% else %}
+                <i class="fas fa-circle-exclamation"></i>
+                {% endif %}
+                <span>{{ report.emergency_type|title }} Emergency</span>
+            </div>
+            <div class="report-status-large 
+                {% if report.status == 'resolved' %}status-resolved
+                {% elif report.status == 'in_progress' %}status-progress
+                {% else %}status-pending{% endif %}">
+                {{ report.status|replace('_', ' ')|title }}
+            </div>
+        </div>
+
+        <!-- Basic Information -->
+        <div class="details-section">
+            <h3 class="section-subtitle">Basic Information</h3>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <label>Report ID:</label>
+                    <span>#{{ report.id }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Submitted:</label>
+                    <span>{{ report.created_at_formatted }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Location:</label>
+                    <span>{{ report.location if report.location else 'Unknown location' }}</span>
+                </div>
+                <div class="detail-item">
+                    <label>Coordinates:</label>
+                    <span>{{ "%.6f, %.6f"|format(report.latitude|float, report.longitude|float) if report.latitude and report.longitude else 'Not available' }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Description -->
+        {% if report.description %}
+        <div class="details-section">
+            <h3 class="section-subtitle">Emergency Description</h3>
+            <div class="description-box">
+                <p>{{ report.description }}</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Response Information -->
+        <div class="details-section">
+            <h3 class="section-subtitle">Response Information</h3>
+            <div class="details-grid">
+                <div class="detail-item">
+                    <label>Response Status:</label>
+                    <span class="status-badge 
+                        {% if report.status == 'resolved' %}status-resolved
+                        {% elif report.status == 'in_progress' %}status-progress
+                        {% else %}status-pending{% endif %}">
+                        {{ report.status|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                <div class="detail-item">
+                    <label>Response Type:</label>
+                    <span>{{ report.response_type }}</span>
+                </div>
+                {% if report.estimated_arrival and report.estimated_arrival != 'Not available' %}
+                <div class="detail-item">
+                    <label>Estimated Arrival:</label>
+                    <span class="eta-arrival"><i class="fas fa-clock"></i> {{ report.estimated_arrival }}</span>
+                </div>
+                {% endif %}
+                {% if report.response_time %}
+                <div class="detail-item">
+                    <label>Response Time:</label>
+                    <span>{{ report.response_time_formatted }}</span>
+                </div>
+                {% if report.response_delay_minutes %}
+                <div class="detail-item">
+                    <label>Response Delay:</label>
+                    <span>{{ report.response_delay_minutes }} minutes</span>
+                </div>
+                {% endif %}
+                {% endif %}
+                {% if report.responder_name %}
+                <div class="detail-item">
+                    <label>Responded By:</label>
+                    <span>{{ report.responder_name }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Notes and Additional Information -->
+        <div class="details-section">
+            <h3 class="section-subtitle">Additional Information</h3>
+            <div class="notes-grid">
+                {% if report.dispatcher_notes and report.dispatcher_notes != 'No dispatcher notes' %}
+                <div class="note-item">
+                    <label>Dispatcher Notes:</label>
+                    <div class="note-content">{{ report.dispatcher_notes }}</div>
+                </div>
+                {% endif %}
+                
+                {% if report.response_notes and report.response_notes != 'No response notes' %}
+                <div class="note-item">
+                    <label>Response Notes:</label>
+                    <div class="note-content">{{ report.response_notes }}</div>
+                </div>
+                {% endif %}
+                
+                {% if report.admin_notes and report.admin_notes != 'No admin notes' %}
+                <div class="note-item">
+                    <label>Admin Notes:</label>
+                    <div class="note-content">{{ report.admin_notes }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="details-section">
+            <h3 class="section-subtitle">Timeline</h3>
+            <div class="timeline">
+                <div class="timeline-item {% if report.created_at %}active{% endif %}">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <strong>Report Submitted</strong>
+                        <span>{{ report.created_at_formatted }}</span>
+                    </div>
+                </div>
+                <div class="timeline-item {% if report.response_time %}active{% endif %}">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <strong>Response Started</strong>
+                        <span>{{ report.response_time_formatted if report.response_time else 'Pending' }}</span>
+                    </div>
+                </div>
+                <div class="timeline-item {% if report.status == 'resolved' %}active{% endif %}">
+                    <div class="timeline-marker"></div>
+                    <div class="timeline-content">
+                        <strong>Resolution</strong>
+                        <span>{{ report.updated_at_formatted if report.status == 'resolved' else 'In progress' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Emergency Image -->
+        {% if report.e_img %}
+        <div class="details-section">
+            <h3 class="section-subtitle">Emergency Photo</h3>
+            <div class="emergency-image">
+                <img src="{{ url_for('static', filename='uploads/' + report.e_img) }}" 
+                     alt="Emergency Photo" 
+                     onclick="openImageModal(this.src)">
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="modal">
+    <span class="modal-close" onclick="closeImageModal()">&times;</span>
+    <img class="modal-content" id="modalImage">
+</div>
+
+<style>
+.report-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.report-item.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.report-item.clickable:hover {
+    background-color: #f8fafc;
+    transform: translateX(5px);
+}
+
+.report-arrow {
+    color: var(--text-light);
+    margin-left: 1rem;
+}
+
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.report-type-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.report-type-badge i {
+    font-size: 1.5rem;
+}
+
+.report-status-large {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.details-section {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.details-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.section-subtitle {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--text);
+}
+
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.detail-item label {
+    font-weight: 600;
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.detail-item span {
+    color: var(--text);
+    font-size: 1rem;
+}
+
+.description-box {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary);
+}
+
+.notes-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.note-item {
+    background: #f8fafc;
+    padding: 1rem;
+    border-radius: 8px;
+    border-left: 4px solid var(--warning);
+}
+
+.note-item label {
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 0.5rem;
+    display: block;
+}
+
+.note-content {
+    color: var(--text);
+    line-height: 1.5;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.6rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e5e7eb;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.timeline-item:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -2rem;
+    top: 0.2rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: #e5e7eb;
+    border: 3px solid white;
+}
+
+.timeline-item.active .timeline-marker {
+    background: var(--primary);
+}
+
+.timeline-content {
+    padding-bottom: 0.5rem;
+}
+
+.timeline-content strong {
+    display: block;
+    color: var(--text);
+    margin-bottom: 0.2rem;
+}
+
+.timeline-content span {
+    color: var(--text-light);
+    font-size: 0.9rem;
+}
+
+.emergency-image {
+    text-align: center;
+}
+
+.emergency-image img {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease;
+}
+
+.emergency-image img:hover {
+    transform: scale(1.02);
+}
+
+/* Modal Styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.9);
+    animation: fadeIn 0.3s;
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 90%;
+    max-height: 90%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 8px;
+}
+
+.modal-close {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: white;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 1001;
+}
+
+.modal-close:hover {
+    color: #ccc;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.response-type {
+    font-size: 0.8rem;
+    color: var(--primary);
+    margin-top: 0.2rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.eta-arrival {
+    color: #059669;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+@media (max-width: 768px) {
+    .report-header {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+    }
+    
+    .details-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .timeline {
+        padding-left: 1.5rem;
+    }
+    
+    .timeline-marker {
+        left: -1.5rem;
+    }
+}
+</style>
+
+<script>
+function openImageModal(src) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    modal.style.display = 'block';
+    modalImg.src = src;
+}
+
+function closeImageModal() {
+    document.getElementById('imageModal').style.display = 'none';
+}
+
+// Close modal when clicking outside the image
+window.onclick = function(event) {
+    const modal = document.getElementById('imageModal');
+    if (event.target === modal) {
+        closeImageModal();
+    }
+}
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeImageModal();
+    }
+});
+</script>
+<script src="{{ url_for('static', filename='js/otp.js') }}"></script>
+{% endblock %}

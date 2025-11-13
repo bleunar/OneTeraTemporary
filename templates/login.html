@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In - 1TERA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+</head>
+<body>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="auth-flash-messages">
+                {% for category, message in messages %}
+                    <div class="auth-alert auth-alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="login-container">
+        <div class="auth-header">
+            <div class="logo-section">
+                
+                <a href="{{ url_for('admin.admin_login') }}"> <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="auth-logo-image" onerror="this.style.display='none'"></a>
+            </div>
+            <h2>ONE Tigbauan Emergency Response App</h2>
+        </div>
+        
+        <div class="login-form">
+            <h1>Login</h1>
+            <form method="POST" action="{{ url_for('login') }}" autocomplete="off" id="loginForm">
+                <div class="input-group">
+                    <input type="email" id="email" name="email" placeholder="Email Address" required autocomplete="off" value="{{ request.form.email if request.form }}">
+                    <label for="email"><i class="fas fa-envelope"></i></label>
+                </div>
+                
+                <div class="input-group">
+                    <input type="password" id="password" name="password" placeholder="Password" required autocomplete="current-password">
+                    <label for="password"><i class="fas fa-lock"></i></label>
+                    <span class="toggle-password" onclick="togglePasswordVisibility('password')">
+                        <i class="fas fa-eye"></i>
+                    </span>
+                </div>
+                
+                <button type="submit" class="login-btn" id="loginBtn">
+                    <span id="loginText">Sign In</span>
+                    <div id="loginSpinner" class="spinner" style="display: none;">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                </button>
+            </form>
+            
+            <div class="auth-links">
+                <p>Don't have an account? <a href="{{ url_for('signup') }}">Sign up here</a></p>
+                <p><a href="{{ url_for('forgot_password') }}">Forgot Password?</a></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/otp.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/security.js') }}"></script>
+
+</body>
+</html>

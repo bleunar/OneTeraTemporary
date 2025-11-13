@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Feedbacks - 1TERA Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+</head>
+<body class="admin-body">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="admin-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image">
+                <div class="logo-text">
+                    
+                    <small>ONE Tigbauan Emergency Response System</small>
+                    
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-header-right">
+            <!-- Notification Bell -->
+            <button class="notification-bell" id="notificationBell" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            
+            <!-- Send Alert Button -->
+            {% if session.admin_role in ['super_admin', 'radio_operator'] %}
+            <button class="btn-send-alert" onclick="openSendAlertModal()">
+                <i class="fas fa-bullhorn"></i>
+                <span class="btn-text">Send Alert</span>
+                <span class="action-text">Alert</span>
+            </button>
+            {% endif %}
+            
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <div class="user-name">{{ session.admin_name }}</div>
+                    <div class="user-role">{{ session.admin_role|replace('_', ' ')|title }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="btn-text">Logout</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Admin Sidebar -->
+<nav class="admin-sidebar" id="adminSidebar">
+    <div class="sidebar-menu">
+        <a href="{{ url_for('admin.admin_dashboard') }}" class="menu-item">
+            <i class="fas fa-tachometer-alt"></i>
+            <span>Dashboard</span>
+        </a>
+        
+        <a href="{{ url_for('admin.admin_reports') }}" class="menu-item">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>Emergency Reports</span>
+        </a>
+
+        <!-- FIXED ROUTE -->
+        <a href="{{ url_for('admin.admin_users_feedback') }}" class="menu-item active">
+            <i class="fas fa-comments"></i>
+            <span>User Feedbacks</span>
+            {% if feedbacks and feedbacks|length > 0 %}
+            <span class="menu-badge">{{ feedbacks|length }}</span>
+            {% endif %}
+        </a>
+
+        {% if session.admin_role == 'radio_operator' %}
+        <a href="{{ url_for('admin.radio_operator_dashboard') }}" class="menu-item">
+            <i class="fas fa-broadcast-tower"></i>
+            <span>Radio Operator</span>
+        </a>
+        {% endif %}
+
+        {% if session.admin_role == 'super_admin' %}
+        <a href="{{ url_for('admin.admin_management') }}" class="menu-item">
+            <i class="fas fa-users-cog"></i>
+            <span>Admin Management</span>
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('index') }}" class="menu-item public-portal">
+            <i class="fas fa-external-link-alt"></i>
+            <span>Public Portal</span>
+        </a>
+    </div>
+</nav>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <div class="admin-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="admin-flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Header -->
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>User Feedbacks</h1>
+                    <p>Manage and review user feedbacks and ratings</p>
+                    <div class="header-stats">
+                        <div class="stat-badge">
+                            <i class="fas fa-comments"></i>
+                            <span>{{ feedbacks|length }} Total Feedbacks</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-smile"></i>
+                            <span>{{ feedbacks|selectattr('rating', '>=', 4)|list|length }} Positive</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-frown"></i>
+                            <span>{{ feedbacks|selectattr('rating', '<=', 2)|list|length }} Negative</span>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Feedback Filters -->
+            <div class="reports-filter">
+                <div class="filter-group">
+                    <label for="ratingFilter">Rating</label>
+                    <select id="ratingFilter" class="filter-select" onchange="filterFeedbacks()">
+                        <option value="all">All Ratings</option>
+                        <option value="5">🤩 Excellent (5)</option>
+                        <option value="4">😄 Good (4)</option>
+                        <option value="3">😊 Average (3)</option>
+                        <option value="2">😐 Poor (2)</option>
+                        <option value="1">😠 Very Poor (1)</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="typeFilter">Feedback Type</label>
+                    <select id="typeFilter" class="filter-select" onchange="filterFeedbacks()">
+                        <option value="all">All Types</option>
+                        <option value="compliment">Compliment</option>
+                        <option value="suggestion">Suggestion</option>
+                        <option value="complaint">Complaint</option>
+                        <option value="bug_report">Bug Report</option>
+                        <option value="feature_request">Feature Request</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="dateFilter">Date Range</label>
+                    <select id="dateFilter" class="filter-select" onchange="filterFeedbacks()">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">This Week</option>
+                        <option value="month">This Month</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="searchInput">Search</label>
+                    <input type="text" id="searchInput" class="form-input" placeholder="Search feedbacks..." onkeyup="searchFeedbacks()">
+                </div>
+            </div>
+
+            <!-- Feedbacks List -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-comments"></i> User Feedbacks</h3>
+                    <span class="admin-count">{{ feedbacks|length }} feedback(s)</span>
+                </div>
+                <div class="card-content">
+                    {% if feedbacks %}
+                    <div class="feedbacks-list">
+                        {% for feedback in feedbacks %}
+                        <div class="feedback-item" 
+                             data-rating="{{ feedback.rating }}"
+                             data-type="{{ feedback.feedback_type }}"
+                             data-date="{{ feedback.created_at.strftime('%Y-%m-%d') }}"
+                             data-search="{{ feedback.fname }} {{ feedback.lname }} {{ feedback.email }} {{ feedback.message }} {{ feedback.feedback_type }}">
+                            <div class="feedback-header">
+                                <div class="feedback-user">
+                                    <strong>{{ feedback.fname }} {{ feedback.lname }}</strong>
+                                    <span class="feedback-type">{{ feedback.feedback_type|replace('_', ' ')|title }}</span>
+                                </div>
+                                <div class="feedback-rating">
+                                    <div class="emoji-rating" data-rating="{{ feedback.rating }}">
+                                        <span class="emoji {% if feedback.rating >= 1 %}active{% endif %}" data-rating="1">😠</span>
+                                        <span class="emoji {% if feedback.rating >= 2 %}active{% endif %}" data-rating="2">😐</span>
+                                        <span class="emoji {% if feedback.rating >= 3 %}active{% endif %}" data-rating="3">😊</span>
+                                        <span class="emoji {% if feedback.rating >= 4 %}active{% endif %}" data-rating="4">😄</span>
+                                        <span class="emoji {% if feedback.rating >= 5 %}active{% endif %}" data-rating="5">🤩</span>
+                                        <span class="rating-text">({{ feedback.rating }}/5)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="feedback-message">
+                                {{ feedback.message }}
+                            </div>
+                            <div class="feedback-meta">
+                                <span class="feedback-time">
+                                    <i class="fas fa-clock"></i>
+                                    {{ feedback.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                </span>
+                                <span class="feedback-email">
+                                    <i class="fas fa-envelope"></i>
+                                    {{ feedback.email }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="empty-state">
+                        <i class="fas fa-comments"></i>
+                        <h3>No Feedbacks Yet</h3>
+                        <p>There are no user feedbacks in the system yet.</p>
+                        <p>User feedbacks will appear here when submitted.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Feedback Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ feedbacks|length }}</div>
+                        <div class="stat-label">Total Feedbacks</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon resolved">
+                        <i class="fas fa-smile"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ feedbacks|selectattr('rating', '>=', 4)|list|length }}</div>
+                        <div class="stat-label">Positive (4-5)</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon progress">
+                        <i class="fas fa-meh"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ feedbacks|selectattr('rating', 'equalto', 3)|list|length }}</div>
+                        <div class="stat-label">Neutral (3)</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon pending">
+                        <i class="fas fa-frown"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ feedbacks|selectattr('rating', '<=', 2)|list|length }}</div>
+                        <div class="stat-label">Negative (1-2)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rating Distribution -->
+            <div class="management-card">
+                <div class="card-header">
+                    <h3><i class="fas fa-chart-bar"></i> Rating Distribution</h3>
+                </div>
+                <div class="card-content">
+                    <div class="rating-distribution">
+                        {% for i in range(5, 0, -1) %}
+                        <div class="rating-bar">
+                            <div class="rating-label">
+                                <span class="emoji-rating-small">
+                                    {% if i == 5 %}🤩{% endif %}
+                                    {% if i == 4 %}😄{% endif %}
+                                    {% if i == 3 %}😊{% endif %}
+                                    {% if i == 2 %}😐{% endif %}
+                                    {% if i == 1 %}😠{% endif %}
+                                    ({{ i }})
+                                </span>
+                            </div>
+                            <div class="rating-progress">
+                                <div class="rating-progress-bar" style="width: {{ (feedbacks|selectattr('rating', 'equalto', i)|list|length / feedbacks|length * 100) if feedbacks|length > 0 else 0 }}%">
+                                    <span class="rating-count">{{ feedbacks|selectattr('rating', 'equalto', i)|list|length }}</span>
+                                </div>
+                            </div>
+                            <div class="rating-percentage">
+                                {{ "%.1f"|format((feedbacks|selectattr('rating', 'equalto', i)|list|length / feedbacks|length * 100) if feedbacks|length > 0 else 0) }}%
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Send Alert Modal -->
+    <div id="sendAlertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bullhorn"></i> Send Emergency Alert</h3>
+                <button class="modal-close" onclick="closeModal('sendAlertModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="alertForm">
+                    <div class="form-group">
+                        <label for="alertType" class="form-label">Alert Type</label>
+                        <select id="alertType" name="alert_type" class="form-input" required>
+                            <option value="info">Information</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertMessage" class="form-label">Alert Message</label>
+                        <textarea id="alertMessage" name="alert_message" class="form-textarea" rows="4" placeholder="Enter alert message..." required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('sendAlertModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notificationsList">
+                <!-- Notifications will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mobile menu functionality
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('adminSidebar');
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        function handleResize() {
+            const sidebar = document.getElementById('adminSidebar');
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('mobile-open');
+            }
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        // Filter functions
+        function filterFeedbacks() {
+            const ratingFilter = document.getElementById('ratingFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+            const rows = document.querySelectorAll('.feedback-item');
+            
+            const today = new Date();
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const monthAgo = new Date(today.getFullYear(), today.getMonth() - 1, today.getDate());
+            
+            rows.forEach(row => {
+                const rating = row.getAttribute('data-rating');
+                const type = row.getAttribute('data-type');
+                const dateStr = row.getAttribute('data-date');
+                const feedbackDate = new Date(dateStr);
+                
+                let showRow = true;
+                
+                // Rating filter
+                if (ratingFilter !== 'all' && rating !== ratingFilter) {
+                    showRow = false;
+                }
+                
+                // Type filter
+                if (typeFilter !== 'all' && type !== typeFilter) {
+                    showRow = false;
+                }
+                
+                // Date filter
+                if (dateFilter !== 'all') {
+                    if (dateFilter === 'today' && feedbackDate.toDateString() !== today.toDateString()) {
+                        showRow = false;
+                    } else if (dateFilter === 'week' && feedbackDate < weekAgo) {
+                        showRow = false;
+                    } else if (dateFilter === 'month' && feedbackDate < monthAgo) {
+                        showRow = false;
+                    }
+                }
+                
+                row.style.display = showRow ? '' : 'none';
+            });
+        }
+        
+        function searchFeedbacks() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const rows = document.querySelectorAll('.feedback-item');
+            
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search').toLowerCase();
+                const isVisible = searchData.includes(searchTerm);
+                row.style.display = isVisible ? '' : 'none';
+            });
+        }
+        
+        function refreshFeedbacks() {
+            location.reload();
+        }
+
+        function openSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openNotifications() {
+            document.getElementById('notificationsModal').style.display = 'flex';
+            loadNotifications();
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationsModal').style.display = 'none';
+        }
+
+        // Alert form submission
+        document.getElementById('alertForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('{{ url_for("admin.send_alert") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    closeModal('sendAlertModal');
+                    document.getElementById('alertForm').reset();
+                } else {
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending alert:', error);
+                showNotification('Error sending alert', 'error');
+            });
+        });
+
+        function showNotification(message, type) {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `notification-toast ${type === 'error' ? 'error' : 'success'}`;
+            notification.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i>
+                    ${message}
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal, .notification-modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Apply filters on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            filterFeedbacks();
+            // Load notifications if function exists
+            if (typeof loadNotifications === 'function') {
+                loadNotifications();
+            }
+        });
+    </script>
+    <script src="{{ url_for('static', filename='js/security.js') }}"></script>
+
+</body>
+</html>

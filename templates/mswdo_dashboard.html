@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSWDO Dashboard - 1TERA</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+</head>
+<body class="admin-body">
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <div class="admin-logo">
+                <i class="fas fa-hands-helping"></i>
+                <span>MSWDO - 1TERA</span>
+            </div>
+        </div>
+        <div class="admin-header-right">
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <span>{{ session.admin_name }}</span>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">Logout</a>
+        </div>
+    </header>
+
+    <nav class="admin-sidebar">
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin.mswdo_dashboard') }}" class="menu-item active">Dashboard</a>
+            <a href="{{ url_for('index') }}" class="menu-item public-portal">Public Portal</a>
+        </div>
+    </nav>
+
+    <main class="admin-main">
+        <div class="admin-container">
+            <div class="coming-soon">
+                <i class="fas fa-hands-helping"></i>
+                <h1>MSWDO Dashboard</h1>
+                <p>Coming Soon</p>
+                <p>This dashboard is currently under development.</p>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

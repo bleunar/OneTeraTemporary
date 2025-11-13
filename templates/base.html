@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}1TERA - Emergency Response{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Permission Request Banner -->
+    <div id="permissionBanner" class="permission-banner" style="display: none;">
+        <div class="permission-content">
+            <div class="permission-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="permission-text">
+                <h3>App Permissions Required</h3>
+                <p>To provide the best emergency response experience, 1TERA needs access to location, notifications, and camera/storage.</p>
+            </div>
+            <div class="permission-actions">
+                <button class="btn btn-primary" id="grantPermissionsBtn">
+                    <i class="fas fa-check"></i> Allow Permissions
+                </button>
+                <button class="btn btn-secondary" id="skipPermissionsBtn">
+                    <i class="fas fa-times"></i> Skip for Now
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image" onerror="this.style.display='none'">
+            <div class="logo-fallback">ONE Tigbauan Emergency Response App
+</div>
+        </div>
+        <div class="header-actions">
+            <button class="header-action-btn" id="notificationsBtn">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="userNotificationBadge" style="display: none;"></span>
+            </button>
+            {% if session.user_id and session.otp_verified %}
+            <a href="{{ url_for('profile') }}" class="header-action-btn">
+                <i class="fas fa-user"></i>
+            </a>
+            {% else %}
+            <a href="{{ url_for('login') }}" class="header-action-btn">
+                <i class="fas fa-user"></i>
+            </a>
+            {% endif %}
+        </div>
+    </header>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Bottom Navigation -->
+    {% if session.user_id and session.otp_verified %}
+    <nav class="bottom-nav">
+        <a href="{{ url_for('index') }}" class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </a>
+        <a href="{{ url_for('emergency_report') }}" class="nav-item {% if request.endpoint == 'emergency_report' %}active{% endif %}">
+            <i class="fas fa-plus-circle"></i>
+            <span>Report</span>
+        </a>
+        <a href="{{ url_for('hotlines') }}" class="nav-item {% if request.endpoint == 'hotlines' %}active{% endif %}">
+            <i class="fas fa-phone"></i>
+            <span>Hotlines</span>
+        </a>
+        <a href="{{ url_for('profile') }}" class="nav-item {% if request.endpoint == 'profile' %}active{% endif %}">
+            <i class="fas fa-user"></i>
+            <span>Profile</span>
+        </a>
+    </nav>
+    {% endif %}
+
+    <!-- User Notifications Modal -->
+    <div id="userNotificationsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeUserNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="notification-list" id="userNotificationsList">
+                    <div class="empty-state">
+                        <i class="fas fa-bell-slash"></i>
+                        <h3>No Notifications</h3>
+                        <p>You're all caught up!</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="markAllNotificationsRead()">
+                    <i class="fas fa-check-double"></i> Mark All as Read
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='js/heatmaps.js') }}"></script>
+    
+    <script>
+        // ========== GLOBAL VARIABLES ==========
+        let swipeStartX = 0;
+        let swipeCurrentX = 0;
+        let isSwiping = false;
+        let currentSwipeItem = null;
+        const SWIPE_THRESHOLD = 60; // pixels to trigger removal
+        let removedNotifications = [];
+
+        // ========== PERMISSION MANAGEMENT ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            const permissionBanner = document.getElementById('permissionBanner');
+            const grantPermissionsBtn = document.getElementById('grantPermissionsBtn');
+            const skipPermissionsBtn = document.getElementById('skipPermissionsBtn');
+
+            // Check if user is logged in and permissions haven't been requested yet
+            {% if session.user_id and session.otp_verified %}
+            const permissionsRequested = localStorage.getItem('permissionsRequested');
+            const permissionsGranted = localStorage.getItem('permissionsGranted');
+            
+            if (!permissionsRequested && !permissionsGranted) {
+                // Show permission banner after a short delay
+                setTimeout(() => {
+                    permissionBanner.style.display = 'block';
+                }, 1000);
+            }
+
+            // Initialize notification system for logged-in users
+            initializeNotificationSystem();
+            {% endif %}
+
+            // Grant permissions button
+            grantPermissionsBtn.addEventListener('click', async function() {
+                const result = await requestAllPermissions();
+                permissionBanner.style.display = 'none';
+                localStorage.setItem('permissionsRequested', 'true');
+                
+                if (result.location || result.notifications) {
+                    localStorage.setItem('permissionsGranted', 'true');
+                    showPermissionSuccess();
+                }
+            });
+
+            // Skip permissions button
+            skipPermissionsBtn.addEventListener('click', function() {
+                permissionBanner.style.display = 'none';
+                localStorage.setItem('permissionsRequested', 'true');
+            });
+        });
+
+        // ========== NOTIFICATION SYSTEM ==========
+
+        function initializeNotificationSystem() {
+            // Load initial notification count
+            updateNotificationBadge();
+            
+            // Check for new notifications every 30 seconds
+            setInterval(updateNotificationBadge, 30000);
+            
+            // Set up notification button click handler
+            const notificationsBtn = document.getElementById('notificationsBtn');
+            if (notificationsBtn) {
+                notificationsBtn.onclick = openUserNotifications;
+            }
+        }
+
+        // User Notification Functions
+        function openUserNotifications() {
+            document.getElementById('userNotificationsModal').style.display = 'flex';
+            loadUserNotifications();
+        }
+
+        function closeUserNotifications() {
+            document.getElementById('userNotificationsModal').style.display = 'none';
+        }
+
+        function loadUserNotifications() {
+            fetch('/get_user_notifications')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('userNotificationsList');
+                    
+                    if (data.success && data.notifications.length > 0) {
+                        let html = '';
+                        const seenMessages = new Set();
+                        
+                        data.notifications.forEach(notification => {
+                            const messageKey = notification.message.substring(0, 100);
+                            if (seenMessages.has(messageKey)) {
+                                return;
+                            }
+                            seenMessages.add(messageKey);
+                            
+                            const icon = getNotificationIcon(notification.type);
+                            const isAlert = notification.source === 'admin_alert';
+                            const alertClass = isAlert ? 'alert-notification' : '';
+                            
+                            html += `
+                                <div class="notification-item ${notification.is_read ? '' : 'unread'} ${alertClass}" 
+                                     data-notification-id="${notification.id}">
+                                    <div class="notification-content-wrapper">
+                                        <div class="notification-icon ${isAlert ? 'alert-icon' : ''}">
+                                            <i class="fas fa-${icon}"></i>
+                                        </div>
+                                        <div class="notification-content">
+                                            <div class="notification-title">${notification.title}</div>
+                                            <div class="notification-message">${notification.message}</div>
+                                            <div class="notification-time">${formatTime(notification.created_at)}</div>
+                                            ${isAlert ? '<div class="notification-source">Admin Alert</div>' : 
+                                              notification.report_id ? '<div class="notification-source">Report Update</div>' : ''}
+                                        </div>
+                                        ${!notification.is_read ? '<div class="notification-dot"></div>' : ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        container.innerHTML = html;
+                        
+                        // Initialize swipe functionality after loading notifications
+                        setTimeout(() => {
+                            initializeSwipeNotifications();
+                        }, 100);
+                    } else {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-bell-slash"></i>
+                                <h3>No Notifications</h3>
+                                <p>You're all caught up!</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Error Loading Notifications</h3>
+                            <p>Please try again later.</p>
+                        </div>
+                    `;
+                });
+        }
+
+        // ========== SWIPE TO REMOVE FUNCTIONALITY ==========
+
+        function initializeSwipeNotifications() {
+            const notificationItems = document.querySelectorAll('.notification-item');
+            
+            notificationItems.forEach(item => {
+                if (!item.classList.contains('swipeable')) {
+                    item.classList.add('swipeable');
+                    
+                    // Remove any existing click handlers
+                    item.onclick = null;
+                    
+                    // Add proper click handler that checks for swipe state
+                    item.addEventListener('click', function(e) {
+                        if (!isSwiping && !this.classList.contains('swipe-threshold')) {
+                            const notificationId = this.dataset.notificationId;
+                            handleNotificationClick(notificationId, this);
+                        }
+                    });
+                    
+                    // Add event listeners for swipe
+                    setupSwipeListeners(item);
+                }
+            });
+        }
+
+        function setupSwipeListeners(item) {
+            // Touch events
+            item.addEventListener('touchstart', handleSwipeStart, { passive: true });
+            item.addEventListener('touchmove', handleSwipeMove, { passive: true });
+            item.addEventListener('touchend', handleSwipeEnd);
+            
+            // Mouse events for desktop
+            item.addEventListener('mousedown', handleSwipeStart);
+            item.addEventListener('mousemove', handleSwipeMove);
+            item.addEventListener('mouseup', handleSwipeEnd);
+            item.addEventListener('mouseleave', handleSwipeEnd);
+        }
+
+        function handleSwipeStart(e) {
+            if (e.type === 'touchstart') {
+                swipeStartX = e.touches[0].clientX;
+            } else {
+                swipeStartX = e.clientX;
+                e.preventDefault();
+            }
+            
+            currentSwipeItem = e.currentTarget;
+            isSwiping = true;
+            currentSwipeItem.classList.remove('swipe-threshold');
+        }
+
+        function handleSwipeMove(e) {
+            if (!isSwiping || !currentSwipeItem) return;
+            
+            if (e.type === 'touchmove') {
+                swipeCurrentX = e.touches[0].clientX;
+            } else {
+                swipeCurrentX = e.clientX;
+                e.preventDefault();
+            }
+            
+            const deltaX = swipeCurrentX - swipeStartX;
+            
+            // Only allow left swipes (negative deltaX)
+            if (deltaX < 0) {
+                const translateX = Math.max(deltaX, -100);
+                currentSwipeItem.style.transform = `translateX(${translateX}px)`;
+                
+                // Add visual feedback when threshold is reached
+                if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+                    currentSwipeItem.classList.add('swipe-threshold');
+                    currentSwipeItem.style.backgroundColor = '#fee2e2';
+                } else {
+                    currentSwipeItem.classList.remove('swipe-threshold');
+                    currentSwipeItem.style.backgroundColor = '';
+                }
+            }
+        }
+
+        function handleSwipeEnd(e) {
+            if (!isSwiping || !currentSwipeItem) return;
+            
+            const deltaX = swipeCurrentX - swipeStartX;
+            
+            if (Math.abs(deltaX) > SWIPE_THRESHOLD && deltaX < 0) {
+                // Swipe threshold reached - remove the notification
+                removeNotification(currentSwipeItem);
+            } else {
+                // Reset position with smooth animation
+                currentSwipeItem.style.transition = 'transform 0.3s ease, background-color 0.3s ease';
+                currentSwipeItem.style.transform = 'translateX(0)';
+                currentSwipeItem.style.backgroundColor = '';
+                currentSwipeItem.classList.remove('swipe-threshold');
+                
+                // Remove transition after reset
+                setTimeout(() => {
+                    currentSwipeItem.style.transition = '';
+                }, 300);
+            }
+            
+            isSwiping = false;
+            currentSwipeItem = null;
+        }
+
+        function removeNotification(item) {
+            const notificationId = item.dataset.notificationId;
+            const notificationContent = item.querySelector('.notification-message').textContent;
+            
+            // Store for undo
+            removedNotifications.push({
+                id: notificationId,
+                element: item.outerHTML,
+                content: notificationContent
+            });
+            
+            // Add smooth removal animation
+            item.style.transition = 'transform 0.3s ease, opacity 0.3s ease, height 0.3s ease, margin 0.3s ease, padding 0.3s ease';
+            item.style.transform = 'translateX(-100%)';
+            item.style.opacity = '0';
+            item.style.height = '0';
+            item.style.margin = '0';
+            item.style.padding = '0';
+            item.style.border = 'none';
+            
+            setTimeout(() => {
+                // Actually remove from DOM
+                item.remove();
+                
+                // Show undo notification
+                showUndoNotification(notificationId, notificationContent);
+                
+                // Update badge count
+                updateNotificationBadge();
+                
+                // Mark as read in backend
+                if (notificationId) {
+                    markNotificationRead(notificationId);
+                }
+                
+                // Check if list is empty and show empty state
+                const notificationList = document.getElementById('userNotificationsList');
+                if (notificationList.children.length === 0) {
+                    notificationList.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-bell-slash"></i>
+                            <h3>No Notifications</h3>
+                            <p>You're all caught up!</p>
+                        </div>
+                    `;
+                }
+            }, 300);
+        }
+
+        function showUndoNotification(notificationId, content) {
+            // Remove existing undo notification
+            const existingUndo = document.querySelector('.undo-notification');
+            if (existingUndo) {
+                existingUndo.remove();
+            }
+            
+            const undoNotification = document.createElement('div');
+            undoNotification.className = 'undo-notification';
+            undoNotification.innerHTML = `
+                <span>Notification removed</span>
+                <button class="undo-btn" onclick="undoRemoveNotification('${notificationId}')">
+                    Undo
+                </button>
+            `;
+            
+            document.body.appendChild(undoNotification);
+            
+            // Show notification
+            setTimeout(() => {
+                undoNotification.classList.add('show');
+            }, 100);
+            
+            // Auto hide after 5 seconds
+            setTimeout(() => {
+                if (undoNotification.parentNode) {
+                    undoNotification.classList.remove('show');
+                    setTimeout(() => {
+                        if (undoNotification.parentNode) {
+                            undoNotification.remove();
+                        }
+                    }, 300);
+                }
+            }, 5000);
+        }
+
+        function undoRemoveNotification(notificationId) {
+            // Find the removed notification
+            const removedIndex = removedNotifications.findIndex(n => n.id === notificationId);
+            if (removedIndex === -1) return;
+            
+            const removedNotif = removedNotifications[removedIndex];
+            
+            // Remove from removed array
+            removedNotifications.splice(removedIndex, 1);
+            
+            // Hide undo notification
+            const undoNotification = document.querySelector('.undo-notification');
+            if (undoNotification) {
+                undoNotification.classList.remove('show');
+                setTimeout(() => {
+                    undoNotification.remove();
+                }, 300);
+            }
+            
+            // Re-add the notification to the list
+            const notificationList = document.getElementById('userNotificationsList');
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = removedNotif.element;
+            const restoredItem = tempDiv.firstElementChild;
+            
+            // Reset styles for restored item
+            restoredItem.style.transform = '';
+            restoredItem.style.opacity = '';
+            restoredItem.style.height = '';
+            restoredItem.style.margin = '';
+            restoredItem.style.padding = '';
+            restoredItem.style.border = '';
+            restoredItem.style.transition = '';
+            restoredItem.style.backgroundColor = '';
+            
+            // Remove empty state if present
+            const emptyState = notificationList.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            // Insert at the top with a nice animation
+            restoredItem.style.opacity = '0';
+            restoredItem.style.transform = 'translateX(-50px)';
+            
+            if (notificationList.firstChild) {
+                notificationList.insertBefore(restoredItem, notificationList.firstChild);
+            } else {
+                notificationList.appendChild(restoredItem);
+            }
+            
+            // Animate in
+            setTimeout(() => {
+                restoredItem.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+                restoredItem.style.opacity = '1';
+                restoredItem.style.transform = 'translateX(0)';
+            }, 50);
+            
+            // Re-initialize swipe for restored item
+            setTimeout(() => {
+                initializeSwipeNotifications();
+            }, 350);
+            
+            // Update badge count
+            updateNotificationBadge();
+        }
+
+        function handleNotificationClick(notificationId, element) {
+            markNotificationRead(notificationId, element);
+        }
+
+        function markNotificationRead(notificationId, element) {
+            fetch(`/mark_notification_read/${notificationId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && element) {
+                        element.classList.remove('unread');
+                        if (element.querySelector('.notification-dot')) {
+                            element.querySelector('.notification-dot').remove();
+                        }
+                        updateNotificationBadge();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error marking notification as read:', error);
+                // Still update UI even if backend fails
+                    if (element) {
+                        element.classList.remove('unread');
+                        if (element.querySelector('.notification-dot')) {
+                            element.querySelector('.notification-dot').remove();
+                        }
+                        updateNotificationBadge();
+                    }
+                });
+        }
+
+        function markAllNotificationsRead() {
+            fetch('/mark_all_notifications_read', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    loadUserNotifications();
+                    updateNotificationBadge();
+                    showFlashNotification('All notifications marked as read', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error marking all notifications as read:', error);
+                showFlashNotification('Error marking notifications as read', 'error');
+            });
+        }
+
+        function updateNotificationBadge() {
+            fetch('/get_unread_notification_count')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('userNotificationBadge');
+                    if (badge) {
+                        if (data.success && data.count > 0) {
+                            badge.textContent = data.count > 99 ? '99+' : data.count;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating notification badge:', error);
+                // Fallback: count unread notifications in DOM
+                    const unreadCount = document.querySelectorAll('.notification-item.unread').length;
+                    const badge = document.getElementById('userNotificationBadge');
+                    if (badge) {
+                        if (unreadCount > 0) {
+                            badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                });
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'pending': 'clock',
+                'in_progress': 'spinner',
+                'resolved': 'check-circle',
+                'dispatched': 'paper-plane',
+                'alert_info': 'info-circle',
+                'alert_warning': 'exclamation-triangle',
+                'alert_danger': 'exclamation-circle',
+                'info': 'info-circle',
+                'warning': 'exclamation-triangle',
+                'danger': 'exclamation-circle'
+            };
+            return icons[type] || 'bell';
+        }
+
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            return date.toLocaleDateString();
+        }
+
+        function showFlashNotification(message, type = 'info') {
+            // Create a temporary notification element
+            const notification = document.createElement('div');
+            notification.className = `flash-notification flash-${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                ${message}
+            `;
+            
+            // Add to body
+            document.body.appendChild(notification);
+            
+            // Show notification
+            setTimeout(() => notification.classList.add('show'), 100);
+            
+            // Auto remove after 3 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Request all permissions async function
+        async function requestAllPermissions() {
+            try {
+                // Request location permission
+                const locationGranted = await requestLocationPermission();
+                
+                // Request notification permission
+                const notificationGranted = await requestNotificationPermission();
+                
+                console.log('Permissions requested:', {
+                    location: locationGranted,
+                    notifications: notificationGranted
+                });
+
+                return {
+                    location: locationGranted,
+                    notifications: notificationGranted
+                };
+            } catch (error) {
+                console.error('Error requesting permissions:', error);
+                return {
+                    location: false,
+                    notifications: false
+                };
+            }
+        }
+
+        // Request location permission
+        async function requestLocationPermission() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    console.log('Geolocation not supported');
+                    resolve(false);
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    () => {
+                        console.log('Location permission granted');
+                        resolve(true);
+                    },
+                    (error) => {
+                        console.log('Location permission denied:', error.message);
+                        resolve(false);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 0
+                    }
+                );
+            });
+        }
+
+        // Request notification permission
+        async function requestNotificationPermission() {
+            if (!('Notification' in window)) {
+                console.log('Notifications not supported');
+                return false;
+            }
+
+            if (Notification.permission === 'granted') {
+                return true;
+            }
+
+            if (Notification.permission === 'denied') {
+                console.log('Notifications previously denied');
+                return false;
+            }
+
+            try {
+                const permission = await Notification.requestPermission();
+                return permission === 'granted';
+            } catch (error) {
+                console.error('Error requesting notification permission:', error);
+                return false;
+            }
+        }
+
+        // Global function to check if location permission is granted
+        window.hasLocationPermission = function() {
+            return new Promise((resolve) => {
+                if (!navigator.geolocation) {
+                    resolve(false);
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    () => resolve(true),
+                    () => resolve(false),
+                    { timeout: 1000 }
+                );
+            });
+        };
+
+        // Global function to request location permission
+        window.requestLocationPermission = function() {
+            return requestLocationPermission();
+        };
+
+        // ========== NOTIFICATION PERSISTENCE FIX ==========
+        
+        // Store notification state in localStorage to prevent reappearance after refresh
+        function storeNotificationState(notificationId, action) {
+            const notificationState = JSON.parse(localStorage.getItem('notificationState') || '{}');
+            notificationState[notificationId] = {
+                action: action,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('notificationState', JSON.stringify(notificationState));
+        }
+
+        function getNotificationState(notificationId) {
+            const notificationState = JSON.parse(localStorage.getItem('notificationState') || '{}');
+            return notificationState[notificationId];
+        }
+
+        // Modified removeNotification function to store state
+        function removeNotificationWithPersistence(item) {
+            const notificationId = item.dataset.notificationId;
+            
+            // Store removal in localStorage
+            storeNotificationState(notificationId, 'removed');
+            
+            // Continue with normal removal process
+            removeNotification(item);
+        }
+
+        // Modified loadUserNotifications to check persisted state
+        function loadUserNotificationsWithPersistence() {
+            fetch('/get_user_notifications')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('userNotificationsList');
+                    
+                    if (data.success && data.notifications.length > 0) {
+                        let html = '';
+                        const seenMessages = new Set();
+                        const notificationState = JSON.parse(localStorage.getItem('notificationState') || '{}');
+                        
+                        data.notifications.forEach(notification => {
+                            // Check if notification was previously removed
+                            const state = getNotificationState(notification.id);
+                            if (state && state.action === 'removed') {
+                                return; // Skip this notification
+                            }
+                            
+                            const messageKey = notification.message.substring(0, 100);
+                            if (seenMessages.has(messageKey)) {
+                                return;
+                            }
+                            seenMessages.add(messageKey);
+                            
+                            const icon = getNotificationIcon(notification.type);
+                            const isAlert = notification.source === 'admin_alert';
+                            const alertClass = isAlert ? 'alert-notification' : '';
+                            
+                            html += `
+                                <div class="notification-item ${notification.is_read ? '' : 'unread'} ${alertClass}" 
+                                     data-notification-id="${notification.id}">
+                                    <div class="notification-content-wrapper">
+                                        <div class="notification-icon ${isAlert ? 'alert-icon' : ''}">
+                                            <i class="fas fa-${icon}"></i>
+                                        </div>
+                                        <div class="notification-content">
+                                            <div class="notification-title">${notification.title}</div>
+                                            <div class="notification-message">${notification.message}</div>
+                                            <div class="notification-time">${formatTime(notification.created_at)}</div>
+                                            ${isAlert ? '<div class="notification-source">Admin Alert</div>' : 
+                                              notification.report_id ? '<div class="notification-source">Report Update</div>' : ''}
+                                        </div>
+                                        ${!notification.is_read ? '<div class="notification-dot"></div>' : ''}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        container.innerHTML = html;
+                        
+                        // Initialize swipe functionality after loading notifications
+                        setTimeout(() => {
+                            initializeSwipeNotifications();
+                        }, 100);
+                        
+                        // Update badge count based on filtered notifications
+                        updateNotificationBadge();
+                    } else {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <i class="fas fa-bell-slash"></i>
+                                <h3>No Notifications</h3>
+                                <p>You're all caught up!</p>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <h3>Error Loading Notifications</h3>
+                            <p>Please try again later.</p>
+                        </div>
+                    `;
+                });
+        }
+
+        // Replace the original functions with the persistent versions
+        const originalRemoveNotification = removeNotification;
+        removeNotification = function(item) {
+            const notificationId = item.dataset.notificationId;
+            storeNotificationState(notificationId, 'removed');
+            originalRemoveNotification(item);
+        };
+
+        const originalLoadUserNotifications = loadUserNotifications;
+        loadUserNotifications = loadUserNotificationsWithPersistence;
+
+        // Clean up old notification state (older than 24 hours)
+        function cleanupOldNotificationState() {
+            const notificationState = JSON.parse(localStorage.getItem('notificationState') || '{}');
+            const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000);
+            
+            Object.keys(notificationState).forEach(notificationId => {
+                if (notificationState[notificationId].timestamp < twentyFourHoursAgo) {
+                    delete notificationState[notificationId];
+                }
+            });
+            
+            localStorage.setItem('notificationState', JSON.stringify(notificationState));
+        }
+
+        // Run cleanup on page load
+        cleanupOldNotificationState();
+
+    </script>
+
+    {% block extra_js %}{% endblock %}
+<script src="{{ url_for('static', filename='js/security.js') }}"></script>
+</body>
+</html>

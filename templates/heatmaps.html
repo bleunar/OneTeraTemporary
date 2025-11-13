@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Emergency Heatmap - 1TERA{% endblock %}
+
+{% block content %}
+<!-- Emergency Map Page -->
+<div class="page active" id="map-page">
+    <h2 class="section-title">Tigbauan Emergency Heatmap</h2>
+    <p class="text-center mb-3">Real-time emergency reports across Tigbauan area - All Users</p>
+    
+    <!-- Emergency Statistics -->
+    <div class="emergency-stats" id="emergencyStats">
+        <div class="stat-card">
+            <div class="stat-number" id="totalEmergencies">0</div>
+            <div class="stat-label">Total Emergencies</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="myReports">0</div>
+            <div class="stat-label">My Reports</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="activeEmergencies">0</div>
+            <div class="stat-label">Active Now</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number" id="resolvedEmergencies">0</div>
+            <div class="stat-label">Resolved</div>
+        </div>
+    </div>
+    
+    <!-- Heatmap Actions -->
+    <div class="heatmap-actions">
+        <button class="heatmap-action-btn" id="toggleHeatmapBtn">
+            <i class="fas fa-fire"></i> Heatmap
+        </button>
+        <button class="heatmap-action-btn active" id="toggleMarkersBtn">
+            <i class="fas fa-map-marker-alt"></i> Markers
+        </button>
+        <button class="heatmap-action-btn" id="toggleClustersBtn">
+            <i class="fas fa-circle-nodes"></i> Clusters
+        </button>
+    </div>
+    
+    <!-- Heatmap Intensity Control -->
+    <div class="heatmap-intensity">
+        <span class="intensity-label">Heatmap Intensity:</span>
+        <input type="range" min="1" max="10" value="5" class="intensity-control" id="heatmapIntensity">
+        <span class="intensity-value" id="intensityValue">Medium</span>
+    </div>
+    
+    <!-- Heatmap Controls -->
+    <div class="heatmap-controls">
+        <div class="heatmap-filter active" data-filter="all">All Emergencies</div>
+        <div class="heatmap-filter" data-filter="my_reports">My Reports</div>
+        <div class="heatmap-filter" data-filter="fire">Fire</div>
+        <div class="heatmap-filter" data-filter="medical">Medical</div>
+        <div class="heatmap-filter" data-filter="natural">Natural Disaster</div>
+        <div class="heatmap-filter" data-filter="accident">Accident</div>
+        <div class="heatmap-filter" data-filter="other">Other</div>
+    </div>
+    
+    <!-- Emergency Legend -->
+    <div class="emergency-legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #ef4444;"></div>
+            <span>Fire Emergency</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #10b981;"></div>
+            <span>Medical Emergency</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #f59e0b;"></div>
+            <span>Natural Disaster</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #8b5cf6;"></div>
+            <span>Accident</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #6b7280;"></div>
+            <span>Other Emergency</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color my-report" style="background-color: #2563eb;"></div>
+            <span>My Reports</span>
+        </div>
+    </div>
+    
+    <!-- Map Container -->
+    <div id="heatmap"></div>
+    
+    <!-- Active Emergencies List -->
+    <div class="card">
+        <h3 class="mb-2">
+            <i class="fas fa-list-ul"></i> Recent Emergency Reports
+            <small style="font-size: 0.8rem; color: var(--text-light); font-weight: normal;">(Showing all users)</small>
+        </h3>
+        <div id="emergenciesList">
+            <!-- Emergencies will be loaded here by JavaScript -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script>
+    // Heatmap data passed from backend
+    const heatmapData = {{ heatmap_data|safe }};
+    
+    // Emergency type colors
+    const emergencyColors = {
+        'fire': '#ef4444',
+        'medical': '#10b981',
+        'natural': '#f59e0b',
+        'accident': '#8b5cf6',
+        'other': '#6b7280'
+    };
+    
+    // Emergency type icons
+    const emergencyIcons = {
+        'fire': 'fire',
+        'medical': 'truck-medical',
+        'natural': 'house-tsunami',
+        'accident': 'car-burst',
+        'other': 'circle-exclamation'
+    };
+</script>
+<script src="{{ url_for('static', filename='js/heatmaps.js') }}"></script>
+{% endblock %}

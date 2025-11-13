@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - 1TERA Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet CSS for Heatmaps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+</head>
+<body class="admin-body">
+    <!-- Admin Header -->
+    <header class="admin-header">
+        <div class="admin-header-left">
+            <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="admin-logo">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="logo-image">
+                <div class="logo-text">
+                    <small>ONE Tigbauan Emergency Response System</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="admin-header-right">
+            <!-- Notification Bell -->
+            <button class="notification-bell" id="notificationBell" onclick="openNotifications()">
+                <i class="fas fa-bell"></i>
+                <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+            </button>
+            
+            <!-- Send Alert Button -->
+            {% if session.admin_role in ['super_admin', 'radio_operator'] %}
+            <button class="btn-send-alert" onclick="openSendAlertModal()">
+                <i class="fas fa-bullhorn"></i>
+                <span class="btn-text">Send Alert</span>
+                <span class="action-text">Alert</span>
+            </button>
+            {% endif %}
+            
+            <div class="admin-user-info">
+                <i class="fas fa-user-circle"></i>
+                <div class="user-details">
+                    <div class="user-name">{{ session.admin_name }}</div>
+                    <div class="user-role">{{ session.admin_role|replace('_', ' ')|title }}</div>
+                </div>
+            </div>
+            <a href="{{ url_for('admin.admin_logout') }}" class="admin-logout-btn">
+                <i class="fas fa-sign-out-alt"></i>
+                <span class="btn-text">Logout</span>
+            </a>
+        </div>
+    </header>
+
+    <!-- Admin Sidebar -->
+    <nav class="admin-sidebar" id="adminSidebar">
+        <div class="sidebar-menu">
+            <a href="{{ url_for('admin.admin_dashboard') }}" class="menu-item active">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </a>
+            
+            <a href="{{ url_for('admin.admin_reports') }}" class="menu-item">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Emergency Reports</span>
+                {% if stats.pending_reports > 0 %}
+                <span class="menu-badge">{{ stats.pending_reports }}</span>
+                {% endif %}
+            </a>
+
+            <!-- FIXED ROUTE -->
+            <a href="{{ url_for('admin.admin_users_feedback') }}" class="menu-item">
+                <i class="fas fa-comments"></i>
+                <span>User Feedbacks</span>
+                {% if feedbacks and feedbacks|length > 0 %}
+                <span class="menu-badge">{{ feedbacks|length }}</span>
+                {% endif %}
+            </a>
+
+            {% if session.admin_role == 'radio_operator' %}
+            <a href="{{ url_for('admin.radio_operator_dashboard') }}" class="menu-item">
+                <i class="fas fa-broadcast-tower"></i>
+                <span>Radio Operator</span>
+            </a>
+            {% endif %}
+
+            {% if session.admin_role == 'super_admin' %}
+            <a href="{{ url_for('admin.admin_management') }}" class="menu-item">
+                <i class="fas fa-users-cog"></i>
+                <span>Admin Management</span>
+            </a>
+            {% endif %}
+
+            <a href="{{ url_for('index') }}" class="menu-item public-portal">
+                <i class="fas fa-external-link-alt"></i>
+                <span>Public Portal</span>
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+        <div class="admin-container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="admin-flash-messages">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Page Header -->
+            <div class="dashboard-header">
+                <div class="header-content">
+                    <h1>Dashboard Overview</h1>
+                    <p>Welcome back, {{ session.admin_name }}! Here's what's happening today.</p>
+                    <div class="header-stats">
+                        <div class="stat-badge">
+                            <i class="fas fa-clock"></i>
+                            <span>{{ stats.pending_reports or 0 }} Pending</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-spinner"></i>
+                            <span>{{ stats.in_progress_reports or 0 }} In Progress</span>
+                        </div>
+                        <div class="stat-badge">
+                            <i class="fas fa-check-circle"></i>
+                            <span>{{ stats.resolved_reports or 0 }} Resolved</span>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon total">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.total_reports or 0 }}</div>
+                        <div class="stat-label">Total Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon today">
+                        <i class="fas fa-calendar-day"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ today_reports }}</div>
+                        <div class="stat-label">Today's Reports</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon pending">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.pending_reports or 0 }}</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-icon resolved">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-number">{{ stats.resolved_reports or 0 }}</div>
+                        <div class="stat-label">Resolved</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-section">
+                <!-- Chart Controls -->
+                <div class="chart-controls">
+                    <h3>Reports Analytics</h3>
+                    <div class="period-filters">
+                        <button class="period-btn active" data-period="7days">Last 7 Days</button>
+                        <button class="period-btn" data-period="30days">Last 30 Days</button>
+                        <button class="period-btn" data-period="90days">Last 90 Days</button>
+                        <button class="period-btn" data-period="1year">Last Year</button>
+                    </div>
+                </div>
+
+                <!-- Charts Grid -->
+                <div class="charts-grid">
+                    <!-- Line Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-line"></i> Reports Trend</h4>
+                            <small>Total reports over time</small>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="lineChart" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Bar Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-chart-bar"></i> Emergency Types</h4>
+                            <small>Distribution by type</small>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="barChart" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Barangay Distribution Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h4><i class="fas fa-map-marker-alt"></i> Reports by Barangay</h4>
+                            <small>Based on actual report data</small>
+                            <button class="btn-refresh-sm" onclick="downloadChartData('barangay_distribution')" title="Download CSV">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="brgyChart" height="250"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Barangay Reports Chart -->
+                    <div class="chart-card full-width">
+                        <div class="chart-header">
+                            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <div>
+                                    <h4><i class="fas fa-calendar-alt"></i> Monthly Barangay Reports - <span id="brgyCurrentYear"></span></h4>
+                                    <small>Emergency reports by barangay and month</small>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <select id="brgyYearFilter" class="filter-select" onchange="updateMonthlyBrgyChart()">
+                                        <!-- Years will be populated by JavaScript -->
+                                    </select>
+                                    <button class="btn-refresh-sm" onclick="downloadChartData('monthly_barangay', document.getElementById('brgyYearFilter').value)" title="Download CSV">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="monthlyBrgyChart" height="300"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Dispatch Chart -->
+                    <div class="chart-card full-width">
+                        <div class="chart-header">
+                            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                <div>
+                                    <h4><i class="fas fa-calendar-alt"></i> Monthly Dispatch Report - <span id="currentYear"></span></h4>
+                                    <small>Emergency dispatches by month and type</small>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <select id="yearFilter" class="filter-select" onchange="updateMonthlyDispatchChart()">
+                                        <!-- Years will be populated by JavaScript -->
+                                    </select>
+                                    <button class="btn-refresh-sm" onclick="downloadChartData('monthly_dispatch', document.getElementById('yearFilter').value)" title="Download CSV">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="monthlyChart" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Heatmaps Section -->
+            <div class="heatmaps-section">
+                <div class="section-header">
+                    <h2><i class="fas fa-fire"></i> Emergency Heatmaps</h2>
+                    <p>Visual representation of emergency reports across Tigbauan</p>
+                </div>
+
+                <!-- Heatmap Controls -->
+                <div class="heatmap-controls">
+                    <div class="control-group">
+                        <label>Filter by Emergency Type:</label>
+                        <div class="filter-buttons">
+                            <button class="filter-btn active" data-filter="all">All Emergencies</button>
+                            <button class="filter-btn" data-filter="fire">Fire</button>
+                            <button class="filter-btn" data-filter="medical">Medical</button>
+                            <button class="filter-btn" data-filter="natural">Natural Disaster</button>
+                            <button class="filter-btn" data-filter="accident">Accident</button>
+                            <button class="filter-btn" data-filter="other">Other</button>
+                        </div>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label>Map Options:</label>
+                        <div class="map-controls">
+                            <button class="map-control-btn active" id="toggleHeatmap">
+                                <i class="fas fa-layer-group"></i> Heatmap
+                            </button>
+                            <button class="map-control-btn active" id="toggleMarkers">
+                                <i class="fas fa-map-marker-alt"></i> Markers
+                            </button>
+                            <button class="map-control-btn" id="toggleClusters">
+                                <i class="fas fa-object-group"></i> Clusters
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <label>Heatmap Intensity:</label>
+                        <div class="intensity-control">
+                            <input type="range" id="heatmapIntensity" min="1" max="10" value="5">
+                            <span id="intensityValue">Medium</span>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Heatmap Container -->
+                <div class="heatmap-container">
+                    <div class="heatmap-stats">
+                        <div class="heatmap-stat">
+                            <div class="stat-value" id="totalEmergencies">0</div>
+                            <div class="stat-label">Total Emergencies</div>
+                        </div>
+                        <div class="heatmap-stat">
+                            <div class="stat-value" id="activeEmergencies">0</div>
+                            <div class="stat-label">Active</div>
+                        </div>
+                        <div class="heatmap-stat">
+                            <div class="stat-value" id="resolvedEmergencies">0</div>
+                            <div class="stat-label">Resolved</div>
+                        </div>
+                        <div class="heatmap-stat">
+                            <div class="stat-value" id="todayEmergencies">0</div>
+                            <div class="stat-label">Today</div>
+                        </div>
+                    </div>
+                    
+                    <div id="heatmap" style="height: 500px; border-radius: 12px; margin-bottom: 1rem;"></div>
+                    
+                    <!-- Emergency Reports List -->
+                    <div class="emergencies-list">
+                        <h4><i class="fas fa-list"></i> Recent Emergency Reports</h4>
+                        <div id="emergenciesList" class="emergencies-list-content">
+                            <!-- Emergency reports will be loaded here -->
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Send Alert Modal -->
+    <div id="sendAlertModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-bullhorn"></i> Send Emergency Alert</h3>
+                <button class="modal-close" onclick="closeModal('sendAlertModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="alertForm">
+                    <div class="form-group">
+                        <label for="alertType" class="form-label">Alert Type</label>
+                        <select id="alertType" name="alert_type" class="form-input" required>
+                            <option value="info">Information</option>
+                            <option value="warning">Warning</option>
+                            <option value="danger">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="alertMessage" class="form-label">Alert Message</label>
+                        <textarea id="alertMessage" name="alert_message" class="form-textarea" rows="4" placeholder="Enter alert message..." required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('sendAlertModal')">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Alert
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Modal -->
+    <div id="notificationsModal" class="notification-modal">
+        <div class="notification-content">
+            <div class="notification-header">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <button class="modal-close" onclick="closeNotifications()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="notification-list" id="notificationsList">
+                <!-- Notifications will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS for Heatmaps -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    
+        <script>
+        // Chart instances
+        let lineChart, barChart, brgyChart, monthlyChart, monthlyBrgyChart;
+        let currentPeriod = '7days';
+
+        // Heatmap data (will be populated from server)
+        let heatmapData = [];
+
+        // Initialize charts and heatmap
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            initializeYearFilters();
+            initializeMonthlyBrgyChart();
+            setupPeriodFilters();
+            loadNotifications();
+            initializeHeatmap();
+            
+            // Set current year displays
+            document.getElementById('currentYear').textContent = {{ chart_data.monthly_chart.current_year }};
+            document.getElementById('brgyCurrentYear').textContent = {{ chart_data.monthly_brgy_chart.year }};
+            
+            // Refresh notifications every 30 seconds
+            setInterval(loadNotifications, 30000);
+            // Refresh heatmap data every 60 seconds
+            setInterval(refreshHeatmapData, 60000);
+        });
+
+        function initializeCharts() {
+            const chartData = {{ chart_data|tojson|safe }};
+            console.log('Chart data:', chartData); // Debug log
+            
+            // Line Chart
+            const lineCtx = document.getElementById('lineChart').getContext('2d');
+            lineChart = new Chart(lineCtx, {
+                type: 'line',
+                data: chartData.line_chart,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Reports'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Date'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Bar Chart
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChart = new Chart(barCtx, {
+                type: 'bar',
+                data: chartData.bar_chart,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Reports'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Barangay Distribution Chart - FIXED: Uses actual data
+            const brgyCtx = document.getElementById('brgyChart').getContext('2d');
+            brgyChart = new Chart(brgyCtx, {
+                type: 'bar',
+                data: chartData.brgy_chart,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Reports'
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Monthly Dispatch Chart
+            const monthlyCtx = document.getElementById('monthlyChart').getContext('2d');
+            monthlyChart = new Chart(monthlyCtx, {
+                type: 'bar',
+                data: chartData.monthly_chart,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Monthly Emergency Dispatches - ${chartData.monthly_chart.current_year}`
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Total Dispatches'
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Dispatches by Type'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    }
+                }
+            });
+
+            // Monthly Barangay Chart - FIXED: Proper initialization
+            initializeMonthlyBrgyChart();
+        }
+
+        // Initialize year filters
+        function initializeYearFilters() {
+            const availableYears = {{ chart_data.available_years|tojson|safe }};
+            console.log('Available years:', availableYears); // Debug log
+            
+            const yearFilter = document.getElementById('yearFilter');
+            const brgyYearFilter = document.getElementById('brgyYearFilter');
+            
+            // Clear existing options
+            yearFilter.innerHTML = '';
+            brgyYearFilter.innerHTML = '';
+            
+            // Add year options
+            availableYears.forEach(year => {
+                const option1 = document.createElement('option');
+                option1.value = year;
+                option1.textContent = year;
+                option1.selected = year === {{ chart_data.monthly_chart.current_year }};
+                yearFilter.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = year;
+                option2.textContent = year;
+                option2.selected = year === {{ chart_data.monthly_brgy_chart.year }};
+                brgyYearFilter.appendChild(option2);
+            });
+        }
+
+        // Initialize monthly barangay chart - FIXED: Proper data handling
+        function initializeMonthlyBrgyChart() {
+            const chartData = {{ chart_data|tojson|safe }};
+            const monthlyBrgyCtx = document.getElementById('monthlyBrgyChart').getContext('2d');
+            
+            console.log('Monthly barangay data:', chartData.monthly_brgy_chart); // Debug log
+            
+            // Get available barangays
+            const availableBarangays = chartData.monthly_brgy_chart.barangays || [];
+            const monthlyStats = chartData.monthly_brgy_chart.monthly_stats || {};
+            const totalReports = chartData.monthly_brgy_chart.total_reports || Array(12).fill(0);
+            const months = chartData.monthly_brgy_chart.months || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            // Get top 5 barangays for better visualization (or all if less than 5)
+            const topBarangays = availableBarangays.slice(0, 5);
+            
+            console.log('Top barangays:', topBarangays); // Debug log
+            console.log('Monthly stats:', monthlyStats); // Debug log
+            
+            // Create datasets for top barangays
+            const datasets = topBarangays.map((brgy, index) => {
+                const colors = [
+                    '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'
+                ];
+                
+                const barangayData = monthlyStats[brgy] || Array(12).fill(0);
+                console.log(`Data for ${brgy}:`, barangayData); // Debug log
+                
+                return {
+                    label: brgy,
+                    data: barangayData,
+                    backgroundColor: colors[index % colors.length] + '80', // Add transparency
+                    borderColor: colors[index % colors.length],
+                    borderWidth: 2,
+                    borderRadius: 4
+                };
+            });
+            
+            // Add total line
+            datasets.push({
+                label: 'Total Reports',
+                data: totalReports,
+                type: 'line',
+                borderColor: '#1f2937',
+                backgroundColor: 'rgba(31, 41, 55, 0.1)',
+                borderWidth: 3,
+                tension: 0.4,
+                fill: false,
+                pointBackgroundColor: '#1f2937',
+                pointBorderColor: '#1f2937',
+                pointRadius: 4
+            });
+            
+            // Destroy existing chart if it exists
+            if (monthlyBrgyChart) {
+                monthlyBrgyChart.destroy();
+            }
+            
+            monthlyBrgyChart = new Chart(monthlyBrgyCtx, {
+                type: 'bar',
+                data: {
+                    labels: months,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Monthly Emergency Reports by Barangay - ${chartData.monthly_brgy_chart.year}`,
+                            font: {
+                                size: 16,
+                                weight: 'bold'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.parsed.y;
+                                    return label;
+                                }
+                            }
+                        },
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                boxWidth: 12,
+                                padding: 15
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Month',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Number of Reports',
+                                font: {
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1000,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            });
+            
+            console.log('Monthly barangay chart initialized'); // Debug log
+        }
+
+        function setupPeriodFilters() {
+            const periodButtons = document.querySelectorAll('.period-btn');
+            
+            periodButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active class from all buttons
+                    periodButtons.forEach(btn => btn.classList.remove('active'));
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    
+                    currentPeriod = this.dataset.period;
+                    updateCharts(currentPeriod);
+                });
+            });
+        }
+
+        function updateCharts(period) {
+            fetch(`/admin/get_chart_data?period=${period}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const chartData = data.chart_data;
+                        
+                        // Update Line Chart
+                        lineChart.data.labels = chartData.line_chart.labels;
+                        lineChart.data.datasets[0].data = chartData.line_chart.datasets[0].data;
+                        lineChart.update();
+                        
+                        // Update Bar Chart
+                        barChart.data.labels = chartData.bar_chart.labels;
+                        barChart.data.datasets[0].data = chartData.bar_chart.datasets[0].data;
+                        barChart.update();
+                        
+                        // Update Barangay Chart
+                        brgyChart.data.labels = chartData.brgy_chart.labels;
+                        brgyChart.data.datasets[0].data = chartData.brgy_chart.datasets[0].data;
+                        brgyChart.update();
+                        
+                        // Update Monthly Chart
+                        monthlyChart.data.labels = chartData.monthly_chart.labels;
+                        monthlyChart.data.datasets = chartData.monthly_chart.datasets;
+                        monthlyChart.update();
+                        
+                        // Update current year
+                        document.getElementById('currentYear').textContent = chartData.monthly_chart.current_year;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating charts:', error);
+                });
+        }
+
+        // Update monthly barangay chart with year filter
+        function updateMonthlyBrgyChart() {
+            const year = document.getElementById('brgyYearFilter').value;
+            
+            showLoading('monthlyBrgyChart');
+            
+            fetch(`/admin/get_monthly_brgy_data?year=${year}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateMonthlyBrgyChartData(data.monthly_brgy_data);
+                        document.getElementById('brgyCurrentYear').textContent = year;
+                    } else {
+                        console.error('Error updating monthly barangay chart:', data.message);
+                        hideLoading('monthlyBrgyChart');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching monthly barangay data:', error);
+                    hideLoading('monthlyBrgyChart');
+                });
+        }
+
+        // Update monthly barangay chart data
+        function updateMonthlyBrgyChartData(chartData) {
+            if (monthlyBrgyChart) {
+                // Get available barangays
+                const availableBarangays = chartData.barangays || [];
+                const monthlyStats = chartData.monthly_stats || {};
+                const totalReports = chartData.total_reports || Array(12).fill(0);
+                const months = chartData.months || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                
+                // Get top 5 barangays
+                const topBarangays = availableBarangays.slice(0, 5);
+                
+                // Update datasets
+                const datasets = topBarangays.map((brgy, index) => {
+                    const colors = [
+                        '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'
+                    ];
+                    
+                    const barangayData = monthlyStats[brgy] || Array(12).fill(0);
+                    
+                    return {
+                        label: brgy,
+                        data: barangayData,
+                        backgroundColor: colors[index % colors.length] + '80',
+                        borderColor: colors[index % colors.length],
+                        borderWidth: 2,
+                        borderRadius: 4
+                    };
+                });
+                
+                // Add total line
+                datasets.push({
+                    label: 'Total Reports',
+                    data: totalReports,
+                    type: 'line',
+                    borderColor: '#1f2937',
+                    backgroundColor: 'rgba(31, 41, 55, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: false,
+                    pointBackgroundColor: '#1f2937',
+                    pointBorderColor: '#1f2937',
+                    pointRadius: 4
+                });
+                
+                monthlyBrgyChart.data.labels = months;
+                monthlyBrgyChart.data.datasets = datasets;
+                monthlyBrgyChart.options.plugins.title.text = `Monthly Emergency Reports by Barangay - ${chartData.year}`;
+                monthlyBrgyChart.update();
+                
+                hideLoading('monthlyBrgyChart');
+            }
+        }
+
+        // Update monthly dispatch chart with year filter
+        function updateMonthlyDispatchChart() {
+            const year = document.getElementById('yearFilter').value;
+            
+            showLoading('monthlyChart');
+            
+            fetch(`/admin/get_monthly_dispatch_data?year=${year}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateMonthlyChartData(data.monthly_data);
+                        document.getElementById('currentYear').textContent = year;
+                        hideLoading('monthlyChart');
+                    } else {
+                        console.error('Error updating monthly dispatch chart:', data.message);
+                        hideLoading('monthlyChart');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching monthly dispatch data:', error);
+                    hideLoading('monthlyChart');
+                });
+        }
+
+        // Update monthly dispatch chart data
+        function updateMonthlyChartData(chartData) {
+            if (monthlyChart) {
+                monthlyChart.data.datasets[0].data = chartData.total_dispatches;
+                monthlyChart.data.datasets[1].data = chartData.emergency_types.fire || Array(12).fill(0);
+                monthlyChart.data.datasets[2].data = chartData.emergency_types.medical || Array(12).fill(0);
+                monthlyChart.data.datasets[3].data = chartData.emergency_types.natural || Array(12).fill(0);
+                monthlyChart.data.datasets[4].data = chartData.emergency_types.accident || Array(12).fill(0);
+                monthlyChart.options.plugins.title.text = `Monthly Emergency Dispatch Report - ${chartData.year}`;
+                monthlyChart.update();
+            }
+        }
+
+        // Download chart data as CSV
+        function downloadChartData(chartType, year = null) {
+            let url = `/admin/download_chart_data?type=${chartType}`;
+            if (year) {
+                url += `&year=${year}`;
+            }
+            
+            window.location.href = url;
+        }
+
+        // Show loading state for chart
+        function showLoading(chartId) {
+            const canvas = document.getElementById(chartId);
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Show loading text
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Loading...', canvas.width / 2, canvas.height / 2);
+        }
+
+        // Hide loading state
+        function hideLoading(chartId) {
+            // Chart.js will automatically redraw when data is updated
+        }
+
+        // Heatmap functionality
+        let map;
+        let heatmapLayer;
+        let markersLayer;
+        let clustersLayer;
+        let currentFilter = 'all';
+        let showHeatmap = true;
+        let showMarkers = true;
+        let showClusters = false;
+
+        function initializeHeatmap() {
+            // Initialize map centered on Tigbauan
+            map = L.map('heatmap').setView([10.6747, 122.3964], 13);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Load heatmap data
+            loadHeatmapData();
+            
+            // Setup heatmap controls
+            setupHeatmapControls();
+        }
+
+        function loadHeatmapData() {
+            fetch('/admin/get_heatmap_data')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        heatmapData = data.reports;
+                        updateHeatmap();
+                        updateHeatmapStats();
+                        renderEmergencyList();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading heatmap data:', error);
+                });
+        }
+
+        function refreshHeatmapData() {
+            loadHeatmapData();
+        }
+
+        function setupHeatmapControls() {
+            // Filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentFilter = this.dataset.filter;
+                    updateHeatmap();
+                    renderEmergencyList();
+                });
+            });
+
+            // Map control buttons
+            document.getElementById('toggleHeatmap').addEventListener('click', function() {
+                showHeatmap = !showHeatmap;
+                this.classList.toggle('active', showHeatmap);
+                updateHeatmap();
+            });
+
+            document.getElementById('toggleMarkers').addEventListener('click', function() {
+                showMarkers = !showMarkers;
+                this.classList.toggle('active', showMarkers);
+                updateHeatmap();
+            });
+
+            document.getElementById('toggleClusters').addEventListener('click', function() {
+                showClusters = !showClusters;
+                this.classList.toggle('active', showClusters);
+                updateHeatmap();
+            });
+
+            // Heatmap intensity control
+            const intensityControl = document.getElementById('heatmapIntensity');
+            const intensityValue = document.getElementById('intensityValue');
+            
+            intensityControl.addEventListener('input', function() {
+                const value = parseInt(this.value);
+                const labels = ['Very Low', 'Low', 'Medium', 'High', 'Very High'];
+                intensityValue.textContent = labels[Math.floor(value / 2)] || 'Danger';
+                updateHeatmap();
+            });
+        }
+
+        function updateHeatmap() {
+            // Clear existing layers
+            if (heatmapLayer) map.removeLayer(heatmapLayer);
+            if (markersLayer) map.removeLayer(markersLayer);
+            if (clustersLayer) map.removeLayer(clustersLayer);
+
+            const filteredData = getFilteredData();
+
+            // Add heatmap layer
+            if (showHeatmap && filteredData.length > 0) {
+                const heatPoints = filteredData
+                    .filter(report => report.latitude && report.longitude)
+                    .map(report => [parseFloat(report.latitude), parseFloat(report.longitude), 1]);
+                
+                const intensity = parseInt(document.getElementById('heatmapIntensity').value);
+                const radius = 15 + (intensity * 2);
+                const blur = 10 + (intensity * 1);
+                
+                heatmapLayer = L.heatLayer(heatPoints, {
+                    radius: radius,
+                    blur: blur,
+                    maxZoom: 17,
+                    gradient: {
+                        0.2: 'blue',
+                        0.4: 'cyan',
+                        0.6: 'lime',
+                        0.8: 'yellow',
+                        1.0: 'red'
+                    }
+                }).addTo(map);
+            }
+
+            // Add markers or clusters
+            if (showMarkers) {
+                if (showClusters) {
+                    clustersLayer = L.markerClusterGroup();
+                    filteredData.forEach(report => {
+                        if (report.latitude && report.longitude) {
+                            const marker = createMarker(report);
+                            clustersLayer.addLayer(marker);
+                        }
+                    });
+                    map.addLayer(clustersLayer);
+                } else {
+                    markersLayer = L.layerGroup();
+                    filteredData.forEach(report => {
+                        if (report.latitude && report.longitude) {
+                            const marker = createMarker(report);
+                            markersLayer.addLayer(marker);
+                        }
+                    });
+                    map.addLayer(markersLayer);
+                }
+            }
+        }
+
+        function createMarker(report) {
+            const emergencyColors = {
+                'fire': '#ef4444',
+                'medical': '#3b82f6',
+                'natural': '#f59e0b',
+                'accident': '#8b5cf6',
+                'other': '#6b7280'
+            };
+
+            const emergencyIcons = {
+                'fire': 'fire',
+                'medical': 'truck-medical',
+                'natural': 'house-tsunami',
+                'accident': 'car-burst',
+                'other': 'circle-exclamation'
+            };
+
+            const color = emergencyColors[report.emergency_type] || emergencyColors.other;
+            const icon = emergencyIcons[report.emergency_type] || 'circle-exclamation';
+
+            const markerIcon = L.divIcon({
+                className: 'emergency-marker',
+                html: `
+                    <div style="
+                        background-color: ${color};
+                        width: 24px;
+                        height: 24px;
+                        border: 3px solid white;
+                        border-radius: 50%;
+                        box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        color: white;
+                        font-size: 10px;
+                        font-weight: bold;
+                    ">
+                        <i class="fas fa-${icon}"></i>
+                    </div>
+                `,
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+
+            const marker = L.marker([parseFloat(report.latitude), parseFloat(report.longitude)], { 
+                icon: markerIcon 
+            });
+
+            const popupContent = `
+                <div class="marker-popup">
+                    <div class="popup-header">
+                        <i class="fas fa-${icon}"></i>
+                        ${report.emergency_type.toUpperCase()} EMERGENCY
+                    </div>
+                    <div class="popup-meta">
+                        <div><strong>Report ID:</strong> #${report.id}</div>
+                        <div><strong>Status:</strong> <span class="status-${report.status}">${report.status.replace('_', ' ').toUpperCase()}</span></div>
+                        <div><strong>Location:</strong> ${report.location || 'Unknown'}</div>
+                        <div><strong>Time:</strong> ${new Date(report.created_at).toLocaleString()}</div>
+                    </div>
+                    ${report.description ? `
+                        <div class="popup-description">
+                            <strong>Description:</strong><br>
+                            ${report.description}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            marker.bindPopup(popupContent);
+            return marker;
+        }
+
+        function getFilteredData() {
+            if (currentFilter === 'all') {
+                return heatmapData;
+            }
+            return heatmapData.filter(report => report.emergency_type === currentFilter);
+        }
+
+        function updateHeatmapStats() {
+            const total = heatmapData.length;
+            const active = heatmapData.filter(r => r.status !== 'resolved').length;
+            const resolved = heatmapData.filter(r => r.status === 'resolved').length;
+            const today = heatmapData.filter(r => {
+                const reportDate = new Date(r.created_at);
+                const today = new Date();
+                return reportDate.toDateString() === today.toDateString();
+            }).length;
+
+            document.getElementById('totalEmergencies').textContent = total;
+            document.getElementById('activeEmergencies').textContent = active;
+            document.getElementById('resolvedEmergencies').textContent = resolved;
+            document.getElementById('todayEmergencies').textContent = today;
+        }
+
+        function renderEmergencyList() {
+            const container = document.getElementById('emergenciesList');
+            const filteredData = getFilteredData().slice(0, 10); // Show latest 10
+
+            if (filteredData.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <p>No emergency reports found for selected filter</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredData.map(report => {
+                const emergencyColors = {
+                    'fire': '#ef4444',
+                    'medical': '#3b82f6', 
+                    'natural': '#f59e0b',
+                    'accident': '#8b5cf6',
+                    'other': '#6b7280'
+                };
+
+                const emergencyIcons = {
+                    'fire': 'fire',
+                    'medical': 'truck-medical',
+                    'natural': 'house-tsunami',
+                    'accident': 'car-burst',
+                    'other': 'circle-exclamation'
+                };
+
+                const color = emergencyColors[report.emergency_type] || emergencyColors.other;
+                const icon = emergencyIcons[report.emergency_type] || 'circle-exclamation';
+
+                return `
+                    <div class="emergency-item" onclick="focusOnReport(${report.id}, ${parseFloat(report.latitude)}, ${parseFloat(report.longitude)})">
+                        <div class="emergency-icon" style="background-color: ${color}20; color: ${color}">
+                            <i class="fas fa-${icon}"></i>
+                        </div>
+                        <div class="emergency-details">
+                            <div class="emergency-title">
+                                ${report.emergency_type.charAt(0).toUpperCase() + report.emergency_type.slice(1)} Emergency
+                                <span class="emergency-status status-${report.status}">
+                                    ${report.status.replace('_', ' ').toUpperCase()}
+                                </span>
+                            </div>
+                            <div class="emergency-meta">
+                                ${report.location || 'Unknown Location'} • ${new Date(report.created_at).toLocaleString()}
+                            </div>
+                            ${report.description ? `
+                                <div class="emergency-description">
+                                    ${report.description.substring(0, 100)}${report.description.length > 100 ? '...' : ''}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function focusOnReport(reportId, lat, lng) {
+            map.setView([lat, lng], 16);
+            
+            // Highlight the marker if it exists
+            if (markersLayer) {
+                markersLayer.eachLayer(layer => {
+                    if (layer.getLatLng().lat === lat && layer.getLatLng().lng === lng) {
+                        layer.openPopup();
+                    }
+                });
+            }
+        }
+
+        function refreshDashboard() {
+            location.reload();
+        }
+
+        function toggleMobileMenu() {
+            const sidebar = document.getElementById('adminSidebar');
+            sidebar.classList.toggle('mobile-open');
+        }
+
+        function openSendAlertModal() {
+            document.getElementById('sendAlertModal').style.display = 'flex';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function openNotifications() {
+            document.getElementById('notificationsModal').style.display = 'flex';
+            loadNotifications();
+        }
+
+        function closeNotifications() {
+            document.getElementById('notificationsModal').style.display = 'none';
+        }
+
+        // Enhanced Notification Functions
+        function handleNotificationClick(reportId) {
+            // Mark as read first
+            markAsRead(reportId);
+            
+            // Redirect to reports page with highlight
+            window.location.href = `{{ url_for('admin.admin_reports') }}#report-${reportId}`;
+        }
+
+        function loadNotifications() {
+            fetch('{{ url_for("admin.get_notifications") }}')
+                .then(response => response.json())
+                .then(data => {
+                    const container = document.getElementById('notificationsList');
+                    const badge = document.getElementById('notificationBadge');
+                    
+                    if (data.success) {
+                        if (data.notifications.length > 0) {
+                            let html = '';
+                            data.notifications.forEach(notification => {
+                                const isEmergencyReport = notification.is_emergency_report || true;
+                                const reportId = notification.report_id || notification.id;
+                                
+                                html += `
+                                    <div class="notification-item unread clickable-notification" 
+                                         onclick="handleNotificationClick(${reportId})"
+                                         data-report-id="${reportId}">
+                                        <div class="notification-title">
+                                            <i class="fas fa-${getNotificationIcon(notification.type)}"></i>
+                                            ${notification.title}
+                                            <i class="fas fa-external-link-alt link-icon"></i>
+                                        </div>
+                                        <div class="notification-message">${notification.message}</div>
+                                        <div class="notification-time">
+                                            ${new Date(notification.created_at).toLocaleString()}
+                                            <span class="report-badge">Report #${reportId}</span>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            container.innerHTML = html;
+                            badge.textContent = data.notifications.length;
+                            badge.style.display = 'flex';
+                        } else {
+                            container.innerHTML = `
+                                <div class="empty-state">
+                                    <i class="fas fa-bell-slash"></i>
+                                    <h3>No Notifications</h3>
+                                    <p>You're all caught up!</p>
+                                </div>
+                            `;
+                            badge.style.display = 'none';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading notifications:', error);
+                });
+        }
+
+        function markAsRead(notificationId) {
+            fetch(`{{ url_for("admin.mark_notification_read", notification_id=0) }}`.replace('0', notificationId))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the notification from UI
+                        const notificationElement = document.querySelector(`[data-report-id="${notificationId}"]`);
+                        if (notificationElement) {
+                            notificationElement.classList.add('notification-removing');
+                            setTimeout(() => {
+                                notificationElement.remove();
+                                updateNotificationBadge();
+                            }, 300);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error marking notification as read:', error);
+                });
+        }
+
+        function updateNotificationBadge() {
+            const notifications = document.querySelectorAll('.notification-item.unread');
+            const badge = document.getElementById('notificationBadge');
+            
+            if (notifications.length > 0) {
+                badge.textContent = notifications.length;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+
+        function getNotificationIcon(type) {
+            const icons = {
+                'new_report': 'exclamation-triangle',
+                'status_update': 'sync',
+                'new_feedback': 'comment',
+                'system': 'cog'
+            };
+            return icons[type] || 'bell';
+        }
+
+        // Send Alert Form Handler
+        document.getElementById('alertForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('{{ url_for("admin.send_alert") }}', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeModal('sendAlertModal');
+                    showToast('Alert sent successfully!', 'success');
+                    this.reset();
+                } else {
+                    showToast('Error sending alert: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending alert:', error);
+                showToast('Error sending alert. Please try again.', 'error');
+            });
+        });
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `notification-toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 5000);
+        }
+
+        // Close modals when clicking outside
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

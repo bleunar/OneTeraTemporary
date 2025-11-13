@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Verification - 1TERA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/otp.css') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}">
+</head>
+<body>
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="auth-flash-messages">
+                {% for category, message in messages %}
+                    <div class="auth-alert auth-alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="otp-container">
+        <div class="auth-header">
+            <div class="logo-section">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="1TERA Logo" class="auth-logo-image" onerror="this.style.display='none'">
+            </div>
+            <h2>ONE Tigbauan Emergency Response App</h2>
+        </div>
+        
+        <div class="otp-form">
+            <h1>Verify Your Account</h1>
+            <p class="otp-description">
+                {% if purpose == 'signup' %}
+                    We've sent a verification code to your email to complete your registration.
+                {% else %}
+                    We've sent a verification code to your email to verify this email.
+                {% endif %}
+            </p>
+            
+            <form method="POST" action="{{ url_for('verify_otp' if purpose == 'login' else 'verify_signup_otp') }}">
+                <div class="otp-input-container">
+                    <input type="text" id="otp" name="otp" class="otp-input" placeholder="000000" required 
+                           maxlength="6" pattern="[0-9]{6}" title="Please enter a 6-digit OTP"
+                           inputmode="numeric">
+                </div>
+                            </form>
+            
+            <div class="auth-links">
+                <p>Didn't receive the code? <a href="{{ url_for('resend_otp') }}">Resend OTP</a></p>
+                {% if purpose == 'login' %}
+                    <p><a href="{{ url_for('login') }}">Back to Login</a></p>
+                {% else %}
+                    <p><a href="{{ url_for('signup') }}">Back to Sign Up</a></p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/otp.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/otp.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/security.js') }}"></script>
+
+</body>
+</html>

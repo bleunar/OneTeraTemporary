@@ -1,0 +1,164 @@
+/* OTP Page Specific Styles */
+:root {
+    --primary-color: #2563eb;
+    --primary-dark: #1d4ed8;
+    --text-light: #ffffff;
+    --text-muted: #cbd5e1;
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background: #000;
+    overflow-x: hidden;
+}
+
+.otp-container {
+    background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), 
+                url("../img/terabg.png");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+}
+
+.otp-form {
+    background: rgba(255, 255, 255, 0.1); /* Transparent background */
+    backdrop-filter: blur(20px); /* Glass effect */
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.otp-form h1 {
+    color: var(--text-light);
+    text-align: center;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    font-size: 1.75rem;
+}
+
+.otp-description {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+    line-height: 1.5;
+}
+
+.otp-input-container {
+    margin-bottom: 1.5rem;
+}
+
+.otp-input {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-light);
+    padding: 1rem;
+    width: 100%;
+    border-radius: 12px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    text-align: center;
+    letter-spacing: 0.5em;
+    transition: var(--transition);
+}
+
+.otp-input:focus {
+    background: rgba(255, 255, 255, 0.15);
+    outline: none;
+    border-color: rgba(37, 99, 235, 0.5);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.otp-input::placeholder {
+    color: var(--text-muted);
+    letter-spacing: normal;
+}
+
+.otp-btn {
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+    padding: 1rem 1.5rem;
+    border: none;
+    border-radius: 12px;
+    font-family: 'Poppins', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: var(--transition);
+}
+
+.otp-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(37, 99, 235, 0.4);
+}
+
+.auth-links {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: var(--text-muted);
+}
+
+.auth-links a {
+    color: var(--text-light);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+    color: var(--primary-color);
+}
+
+.auth-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.auth-logo-image {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 1rem;
+}
+
+.auth-header h2 {
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 400;
+}
+
+@media (max-width: 480px) {
+    .otp-container {
+        padding: 0.5rem;
+    }
+    
+    .otp-form {
+        padding: 2rem 1.5rem;
+    }
+    
+    .otp-input {
+        font-size: 1.25rem;
+        padding: 0.875rem;
+    }
+    
+    .auth-header h2 {
+        font-size: 1rem;
+    }
+}

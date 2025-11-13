@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}Feedback - 1TERA{% endblock %}
+
+{% block content %}
+<!-- Feedback Page -->
+<div class="page active" id="feedback-page">
+    <h2 class="section-title">Send Feedback</h2>
+    <p class="text-center mb-3">We appreciate your feedback to improve our services</p>
+    
+    <div class="feedback-container">
+        <div class="card">
+            <form method="POST" action="{{ url_for('feedback') }}" id="feedbackForm">
+                <div class="form-group">
+                    <label class="form-label">How would you rate our service?</label>
+                    <div class="emoji-rating">
+                        <span class="emoji" data-rating="1">😠</span>
+                        <span class="emoji" data-rating="2">😐</span>
+                        <span class="emoji" data-rating="3">😊</span>
+                        <span class="emoji" data-rating="4">😄</span>
+                        <span class="emoji" data-rating="5">🤩</span>
+                    </div>
+                    <input type="hidden" id="rating" name="rating" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackType" class="form-label">Feedback Type</label>
+                    <select id="feedbackType" name="feedback_type" class="form-input" required>
+                        <option value="">Select feedback type</option>
+                        <option value="suggestion">Suggestion</option>
+                        <option value="complaint">Complaint</option>
+                        <option value="compliment">Compliment</option>
+                        <option value="bug">Bug Report</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="feedbackMessage" class="form-label">Your Feedback</label>
+                    <textarea id="feedbackMessage" name="message" class="form-textarea" placeholder="Please share your thoughts, suggestions, or concerns..." required></textarea>
+                </div>
+                
+                <button type="submit" class="btn btn-block">
+                    <i class="fas fa-paper-plane"></i> Submit Feedback
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        let emojiRating = 0;
+        const emojis = document.querySelectorAll('.emoji');
+        const ratingInput = document.getElementById('rating');
+        
+        // Emoji Rating
+        emojis.forEach(emoji => {
+            emoji.addEventListener('click', function() {
+                const rating = this.getAttribute('data-rating');
+                emojiRating = rating;
+                ratingInput.value = rating;
+                
+                emojis.forEach(e => {
+                    if (e.getAttribute('data-rating') <= rating) {
+                        e.classList.add('active');
+                    } else {
+                        e.classList.remove('active');
+                    }
+                });
+            });
+        });
+        
+        // Form validation
+        document.getElementById('feedbackForm').addEventListener('submit', function(e) {
+            if (emojiRating === 0) {
+                e.preventDefault();
+                alert('Please provide a rating.');
+                return;
+            }
+        });
+    });
+</script>
+{% endblock %}

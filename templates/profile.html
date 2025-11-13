@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - 1TERA{% endblock %}
+
+{% block content %}
+<!-- Profile Page -->
+<div class="page active" id="profile-page">
+    <div class="profile-header">
+        <div class="profile-avatar">
+            <i class="fas fa-user"></i>
+        </div>
+        <div class="profile-name">{{ user.fname }} {{ user.lname }}</div>
+        <div class="profile-email">{{ user.email }}</div>
+    </div>
+    
+    <div class="profile-stats">
+        <div class="stat-item">
+            <div class="stat-value">{{ total_reports }}</div>
+            <div class="stat-label">My Reports</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ resolved_reports }}</div>
+            <div class="stat-label">Resolved</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">{{ pending_reports }}</div>
+            <div class="stat-label">Pending</div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3 class="mb-2">Account Information</h3>
+        <div class="profile-info">
+            <div class="info-item">
+                <span class="info-label"><i class="fas fa-user"></i> Full Name</span>
+                <span class="info-value">{{ user.fname }} {{ user.lname }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label"><i class="fas fa-phone"></i> Phone Number</span>
+                <span class="info-value">{{ user.phone_num }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label"><i class="fas fa-birthday-cake"></i> Age</span>
+                <span class="info-value">{{ user.age }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label"><i class="fas fa-calendar"></i> Birthday</span>
+                <span class="info-value">{{ user.birthday.strftime('%B %d, %Y') if user.birthday else 'Not set' }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label"><i class="fas fa-envelope"></i> Email</span>
+                <span class="info-value">{{ user.email }}</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label"><i class="fas fa-calendar-plus"></i> Member Since</span>
+                <span class="info-value">{{ user.created_at.strftime('%B %d, %Y') if user.created_at else 'Unknown' }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <h3 class="mb-2">Account Settings</h3>
+        <div class="profile-actions">
+            <div class="action-item" onclick="alert('Edit profile feature coming soon!')">
+                <div class="action-icon">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <div class="action-details">
+                    <div class="action-title">Edit Profile</div>
+                    <div class="action-desc">Update your personal information</div>
+                </div>
+                <i class="fas fa-chevron-right"></i>
+            </div>
+          
+            <a href="{{ url_for('logout') }}" class="action-item" style="text-decoration: none; color: inherit;">
+                <div class="action-icon">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <div class="action-details">
+                    <div class="action-title">Logout</div>
+                    <div class="action-desc">Sign out</div>
+                </div>
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

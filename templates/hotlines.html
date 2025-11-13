@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Hotlines - 1TERA{% endblock %}
+
+{% block content %}
+<!-- Hotlines Page -->
+<div class="page active" id="hotlines-page">
+    <h2 class="section-title">Emergency Hotlines</h2>
+    <p class="text-center mb-3">Important contact numbers for emergencies</p>
+    
+    <div class="card">
+        {% if hotlines %}
+            {% for hotline in hotlines %}
+            <div class="hotline-item">
+                <div class="hotline-icon">
+                    {% if hotline.category == 'police' %}
+                        <i class="fas fa-shield-alt"></i>
+                    {% elif hotline.category == 'fire' %}
+                        <i class="fas fa-fire"></i>
+                    {% elif hotline.category == 'medical' %}
+                        <i class="fas fa-truck-medical"></i>
+                    {% elif hotline.category == 'rescue' %}
+                        <i class="fas fa-life-ring"></i>
+                    {% elif hotline.category == 'coast_guard' %}
+                        <i class="fas fa-water"></i>
+                    {% elif hotline.category == 'disaster' %}
+                        <i class="fas fa-house-damage"></i>
+                    {% else %}
+                        <i class="fas fa-phone"></i>
+                    {% endif %}
+                </div>
+                <div class="hotline-details">
+                    <div class="hotline-name">{{ hotline.name }}</div>
+                    <div class="hotline-number">{{ hotline.number }}</div>
+                </div>
+                <a href="tel:{{ hotline.number }}" class="hotline-call">
+                    <i class="fas fa-phone"></i>
+                </a>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center" style="padding: 2rem;">
+                <i class="fas fa-phone" style="font-size: 3rem; color: #6b7280; margin-bottom: 1rem;"></i>
+                <p>No hotlines available</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Add click event for phone calls
+    document.querySelectorAll('.hotline-call').forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (!confirm('Call this emergency number?')) {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+{% endblock %} 
