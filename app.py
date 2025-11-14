@@ -12,6 +12,12 @@ from admin import admin_bp
 import pytz
 import hashlib
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
+# Timezone configuration
+MANILA_TZ = pytz.timezone('Asia/Manila')
 
 app = Flask(__name__)
 
@@ -1343,7 +1349,7 @@ def resend_forgot_password_otp():
         if user:
             # Generate new OTP
             otp = generate_otp()
-            otp_expiry = datetime.now() + timedelta(minutes=10)
+            otp_expiry = datetime.now(MANILA_TZ) + timedelta(minutes=10)
             
             # Update session with new OTP
             session['reset_otp'] = otp
@@ -1434,4 +1440,42 @@ def internal_error(error):
     """, 500
 
 if __name__ == '__main__':
+    print("\n" + "="*60)
+    print("🚀 1TERA SYSTEM STARTUP CONFIGURATION")
+    print("="*60)
+    
+    print("📋 BASIC CONFIGURATION:")
+    print(f"  SECRET_KEY: {'*' * len(app.config['SECRET_KEY'])} (hidden)")
+    print(f"  DEBUG: {DEBUG}")
+    print(f"  ENVIRONMENT: {ENVIRONMENT}")
+    
+    print("\n🗄️  MYSQL DATABASE CONFIGURATION:")
+    print(f"  MYSQL_HOST: {app.config['MYSQL_HOST']}")
+    print(f"  MYSQL_USER: {app.config['MYSQL_USER']}")
+    print(f"  MYSQL_PASSWORD: {'*' * len(app.config['MYSQL_PASSWORD']) if app.config['MYSQL_PASSWORD'] else 'None'} (hidden)")
+    print(f"  MYSQL_DB: {app.config['MYSQL_DB']}")
+    
+    print("\n📧 EMAIL CONFIGURATION:")
+    print(f"  MAIL_SERVER: {app.config['MAIL_SERVER']}")
+    print(f"  MAIL_PORT: {app.config['MAIL_PORT']}")
+    print(f"  MAIL_USE_TLS: {app.config['MAIL_USE_TLS']}")
+    print(f"  MAIL_USERNAME: {app.config['MAIL_USERNAME']}")
+    print(f"  MAIL_PASSWORD: {'*' * len(app.config['MAIL_PASSWORD']) if app.config['MAIL_PASSWORD'] else 'None'} (hidden)")
+    print(f"  ADMIN_EMAIL: {app.config['ADMIN_EMAIL']}")
+    print(f"  MAIL_SUPPRESS_SEND: {app.config['MAIL_SUPPRESS_SEND']}")
+    
+    print("\n📁 FILE UPLOAD CONFIGURATION:")
+    print(f"  UPLOAD_FOLDER: {app.config['UPLOAD_FOLDER']}")
+    print(f"  MAX_CONTENT_LENGTH: {app.config['MAX_CONTENT_LENGTH']} bytes ({app.config['MAX_CONTENT_LENGTH']//(1024*1024)}MB)")
+    print(f"  ALLOWED_EXTENSIONS: {ALLOWED_EXTENSIONS}")
+    
+    print("\n🌐 DEPLOYMENT CONFIGURATION:")
+    print(f"  HOST: {HOST}")
+    print(f"  PORT: {PORT}")
+    
+    
+    print("="*60)
+    print("✅ System ready to start!")
+    print("="*60 + "\n")
+    
     app.run(host=HOST, port=PORT, debug=DEBUG)

@@ -10,6 +10,10 @@ import json
 import os
 import pytz
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 # Timezone configuration
