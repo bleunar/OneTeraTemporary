@@ -10,6 +10,7 @@ import secrets
 from werkzeug.utils import secure_filename
 from admin import admin_bp
 import pytz
+import hashlib
 
 
 app = Flask(__name__)
@@ -105,9 +106,13 @@ def send_otp_email(email, otp):
         return False
 
 def get_device_fingerprint():
-    """Generate a simple device fingerprint"""
-    user_agent = request.headers.get('User-Agent', '')
-    return secrets.token_hex(16)  
+    """Generate a persistent device fingerprint based on user agent and IP"""
+    user_agent = request.headers.get('User-Agent', '')[:200]  # Limit length
+    ip = request.remote_addr
+    
+    # Create hash of user agent + IP for consistent fingerprinting
+    fingerprint_data = f"{user_agent}|{ip}".encode()
+    return hashlib.sha256(fingerprint_data).hexdigest()[:32]  
 
 def allowed_file(filename):
     """Check if file extension is allowed"""
@@ -369,7 +374,7 @@ def verify_otp():
             cur.execute("""
                 SELECT * FROM otp_verifications 
                 WHERE user_id = %s AND otp = %s AND expiry > %s
-            """, (session['pending_user_id'], otp, datetime.now()))
+            """, (session['pending_user_id'], otp, datetime.now(MANILA_TZ)))
             
             otp_record = cur.fetchone()
             
@@ -425,7 +430,7 @@ def verify_signup_otp():
         
         # Check if OTP matches and is not expired
         if (otp == pending_data['otp'] and 
-            datetime.fromisoformat(pending_data['otp_expiry']) > datetime.now()):
+            datetime.fromisoformat(pending_data['otp_expiry']) > datetime.now(MANILA_TZ)):
             
             conn = get_db_connection()
             if not conn:
@@ -650,7 +655,7 @@ def heatmaps():
                 'user_name': f"{report.get('fname', '')} {report.get('lname', '')}".strip(),
                 'image': report.get('e_img', None),
                 'ownership': report.get('report_ownership', 'other_report'),
-                'time': report.get('created_at', datetime.now()).strftime('%Y-%m-%d %H:%M') if isinstance(report.get('created_at'), datetime) else 'Unknown'
+                'time': report.get('created_at', datetime.now(MANILA_TZ)).strftime('%Y-%m-%d %H:%M') if isinstance(report.get('created_at'), datetime) else 'Unknown'
             })
         
         return render_template('heatmaps.html', heatmap_data=json.dumps(heatmap_data))
@@ -950,14 +955,14 @@ def mark_notification_read(notification_id):
             cur.execute("""
                 INSERT IGNORE INTO user_alert_views (user_id, alert_id, read_at)
                 VALUES (%s, %s, %s)
-            """, (session['user_id'], alert_id, datetime.now()))
+            """, (session['user_id'], alert_id, datetime.now(MANILA_TZ)))
         else:
             # Mark user notification as read
             cur.execute("""
                 UPDATE user_notifications 
                 SET is_read = TRUE, read_at = %s 
                 WHERE id = %s AND user_id = %s
-            """, (datetime.now(), notification_id, session['user_id']))
+            """, (datetime.now(MANILA_TZ), notification_id, session['user_id']))
         
         conn.commit()
         cur.close()
@@ -989,7 +994,7 @@ def mark_all_notifications_read():
             UPDATE user_notifications 
             SET is_read = TRUE, read_at = %s 
             WHERE user_id = %s AND is_read = FALSE
-        """, (datetime.now(), session['user_id']))
+        """, (datetime.now(MANILA_TZ), session['user_id']))
         
         # Mark all admin alerts as read
         cur.execute("""
@@ -1000,7 +1005,7 @@ def mark_all_notifications_read():
             AND aa.id NOT IN (
                 SELECT alert_id FROM user_alert_views WHERE user_id = %s
             )
-        """, (session['user_id'], datetime.now(), session['user_id']))
+        """, (session['user_id'], datetime.now(MANILA_TZ), session['user_id']))
         
         conn.commit()
         cur.close()
@@ -1164,7 +1169,7 @@ def delete_notification(notification_id):
             cur.execute("""
                 INSERT IGNORE INTO user_alert_views (user_id, alert_id, read_at)
                 VALUES (%s, %s, %s)
-            """, (session['user_id'], alert_id, datetime.now()))
+            """, (session['user_id'], alert_id, datetime.now(MANILA_TZ)))
         else:
             # It's a regular user notification - delete it permanently
             cur.execute("""
@@ -1202,7 +1207,7 @@ def forgot_password():
             if user:
                 # Generate OTP for password reset
                 otp = generate_otp()
-                otp_expiry = datetime.now() + timedelta(minutes=10)
+                otp_expiry = datetime.now(MANILA_TZ) + timedelta(minutes=10)
                 
                 # Store OTP in session for verification (no database changes needed)
                 session['reset_email'] = email
@@ -1237,7 +1242,7 @@ def verify_forgot_password_otp():
     # Verify OTP from session
     if (session.get('reset_email') == email and 
         session.get('reset_otp') == otp and
-        datetime.fromisoformat(session.get('reset_otp_expiry')) > datetime.now()):
+        datetime.fromisoformat(session.get('reset_otp_expiry')) > datetime.now(MANILA_TZ)):
         
         # OTP is valid, proceed to password reset
         session['reset_verified'] = True
